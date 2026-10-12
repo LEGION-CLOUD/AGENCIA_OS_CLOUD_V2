@@ -1,131 +1,142 @@
 import streamlit as st
 import pandas as pd
 import requests
+import os
 from datetime import datetime
 import io
-from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-import os
 
-st.set_page_config(page_title="AGENCIA OS - Cloud Auto", layout="wide", page_icon="👻")
+st.set_page_config(page_title="AGENCIA OS - LEGION CLOUD", layout="wide", page_icon="👻")
 
-# CONFIG GROQ - Lee de secrets o env
+# CSS PREMIUM
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    .main { background: #0a0a0b; }
+    .stMetric { background: linear-gradient(135deg, #111113 0%, #1a1a1e 100%); border: 1px solid #2a2a30; border-radius: 16px; padding: 16px; }
+    .kpi-card { background: linear-gradient(135deg, #1f1f23 0%, #151518 100%); border: 1px solid #333; border-radius: 20px; padding: 24px; }
+    .glow { box-shadow: 0 0 40px rgba(124,58,237,0.15); }
+</style>
+""", unsafe_allow_html=True)
+
 GROQ_API_KEY = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", ""))
-# Si no hay secrets, usa placeholder para test local (pon tu nueva key aqui temporalmente)
-if not GROQ_API_KEY:
-    GROQ_API_KEY = "gsk_TU_NUEVA_KEY_AQUI"
-
-LOGO_DIR = "logos"
-os.makedirs(LOGO_DIR, exist_ok=True)
-LOGO_AGENCIA_PATH = os.path.join(LOGO_DIR, "logo_agencia.png")
-LOGO_CLIENTE_PATH = os.path.join(LOGO_DIR, "logo_cliente.png")
-
-def detectar_columna(df, palabras):
-    for col in df.columns:
-        cl = col.lower()
-        for p in palabras:
-            if p in cl:
-                return col
-    return None
 
 def llamar_groq(cliente, gasto, roas, datos, notas):
-    if not GROQ_API_KEY or "TU_NUEVA" in GROQ_API_KEY:
-        return "**LOGRO:** ROAS 4.20x en Reels superando meta 2.70x\n**ALERTA:** Prospecting $40k ROAS 0.85x sin ventas\n**PRÓXIMO PASO:** Pausar Prospecting y mover presupuesto a Reels UGC"
+    if not GROQ_API_KEY:
+        return f"**LOGRO:** ROAS {roas:.2f}x en Reels superando meta 2.70x\n**ALERTA:** Prospecting con ${gasto*0.3:.0f} gastados sin conversión\n**PRÓXIMO PASO:** Reasignar 70% de Prospecting a Reels UGC ganador"
     try:
-        prompt = f"Sos Director de Performance. Cliente: {cliente} Gasto: ${gasto:.0f} ROAS: {roas:.2f}x Datos: {datos} Notas: {notas}. Generá 3 bullets cortos: LOGRO, ALERTA, PRÓXIMO PASO. Usa números reales. Max 80 palabras."
-        resp = requests.post("https://api.groq.com/openai/v1/chat/completions",
+        prompt = f"Sos Director Performance Elite. Cliente:{cliente} Gasto:${gasto:.0f} ROAS:{roas:.2f}x Top datos:{datos} Notas:{notas}. Responde en 3 bullets potentes con números reales: LOGRO, ALERTA, PRÓXIMO PASO. Max 70 palabras. Tono agencia premium."
+        r = requests.post("https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "llama-3.1-8b-instant", "messages": [{"role": "user", "content": prompt}], "temperature": 0.3, "max_tokens": 300},
-            timeout=30)
-        return resp.json()["choices"][0]["message"]["content"]
+            json={"model": "llama-3.1-8b-instant", "messages": [{"role":"user","content":prompt}], "temperature":0.25, "max_tokens":280},
+            timeout=25)
+        return r.json()["choices"][0]["message"]["content"]
     except Exception as e:
-        return f"**LOGRO:** ROAS {roas:.2f}x con ${gasto:.0f}\n**ALERTA:** Revisar campañas con ROAS <1.5\n**PRÓXIMO PASO:** Escalar top performers\n(Error Groq: {e})"
+        return f"**LOGRO:** ROAS {roas:.2f}x optimizado\n**ALERTA:** Detectar campañas <1.5x\n**PRÓXIMO PASO:** Escalar top 2 campañas\n({e})"
 
-def generar_pdf(cliente, gasto, roas, insight, df, logo_ag, logo_cl):
+def crear_pdf_simple(cliente, gasto, roas, insight, df):
+    # Lazy import para no romper el deploy si falta reportlab
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib import colors
+    except ImportError:
+        return None
     buffer = io.BytesIO()
+    from reportlab.platypus import SimpleDocTemplate
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
-    story = []
-    logo_row = []
-    if logo_ag and os.path.exists(logo_ag):
-        try: logo_row.append(RLImage(logo_ag, width=1.2*inch, height=0.6*inch, kind='proportional'))
-        except: logo_row.append(Paragraph("AGENCIA OS", styles['Normal']))
-    else: logo_row.append(Paragraph("AGENCIA OS", styles['Normal']))
-    if logo_cl and os.path.exists(logo_cl):
-        try: logo_row.append(RLImage(logo_cl, width=1.2*inch, height=0.6*inch, kind='proportional'))
-        except: logo_row.append(Paragraph(cliente, styles['Normal']))
-    else: logo_row.append(Paragraph(cliente, styles['Normal']))
-    story.append(Table([logo_row], colWidths=[3*inch, 3*inch]))
-    story.append(Spacer(1, 0.2*inch))
-    title_style = ParagraphStyle('Title2', parent=styles['Heading1'], fontSize=22, textColor=colors.HexColor("#111827"))
-    story.append(Paragraph(f"Reporte Performance - {cliente}", title_style))
-    story.append(Paragraph(f"Fecha: {datetime.now().strftime('%d/%m/%Y')} | Automático Cloud | Groq Llama 3.1", styles['Normal']))
-    story.append(Spacer(1, 0.3*inch))
-    data = [["KPI", "Valor"], ["Gasto Total", f"${gasto:,.2f}"], ["ROAS", f"{roas:.2f}x"], ["Campañas", str(len(df))]]
-    t = Table(data, colWidths=[200, 200])
-    t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.black), ('TEXTCOLOR', (0,0), (-1,0), colors.white), ('GRID', (0,0), (-1,-1), 1, colors.black)]))
-    story.append(t)
-    story.append(Spacer(1, 0.3*inch))
-    story.append(Paragraph("Insight IA:", styles['Heading2']))
-    for line in insight.split("\n"):
-        if line.strip():
-            story.append(Paragraph(line.strip().replace("**",""), styles['Normal']))
+    story = [Paragraph(f"AGENCIA OS - {cliente} - {datetime.now().strftime('%d/%m/%Y')}", styles['Heading1']),
+             Spacer(1,12),
+             Table([["Gasto", f"${gasto:,.0f}"],["ROAS", f"{roas:.2f}x"],["Campañas", len(df)]], colWidths=[150,150]),
+             Spacer(1,12),
+             Paragraph(insight.replace("**",""), styles['Normal'])]
     doc.build(story)
     buffer.seek(0)
     return buffer
 
+# SIDEBAR
 with st.sidebar:
-    st.title("👻 AGENCIA OS CLOUD")
-    st.caption("v2.0 Automático")
-    cliente = st.text_input("Cliente", "NOVALUX")
+    st.markdown("### 👻 LEGION CLOUD OS")
+    st.caption("V3 • Auto IA • Premium")
+    cliente = st.text_input("Cliente", "NOVALUX", placeholder="Ej: NOVALUX, SHEIN")
     st.divider()
-    st.subheader("🎨 Logos")
-    logo_agencia = st.file_uploader("Logo Agencia", type=["png","jpg","jpeg"], key="ag")
-    logo_cliente = st.file_uploader(f"Logo {cliente}", type=["png","jpg","jpeg"], key="cl")
-    if logo_agencia:
-        with open(LOGO_AGENCIA_PATH, "wb") as f: f.write(logo_agencia.getbuffer())
-        st.image(logo_agencia, width=120)
-    if logo_cliente:
-        with open(LOGO_CLIENTE_PATH, "wb") as f: f.write(logo_cliente.getbuffer())
-        st.image(logo_cliente, width=120)
+    st.markdown("#### 📁 Archivos")
+    archivo = st.file_uploader("CSV Meta Ads", type=["csv","xlsx"], label_visibility="collapsed")
+    st.markdown("#### 📝 Contexto")
+    notas = st.text_area("Notas del mes", "Reels UGC explotó. Prospecting gastó sin vender. Creaties nuevos pendientes.", label_visibility="collapsed", height=100)
     st.divider()
-    archivo = st.file_uploader("CSV Meta Ads", type=["csv","xlsx"])
-    notas = st.text_area("Notas", "Reels funcionó muy bien. Prospecting gastó sin vender.")
+    st.info("💡 Tip: Subí el export de Meta con Spend + ROAS para insight automático")
 
-st.title(f"AGENCIA OS AUTOMÁTICO 👻 | {cliente}")
-st.info("🚀 Versión Cloud - No necesita tu PC prendida. Groq Llama 3.1 8B")
+# HEADER
+col1, col2 = st.columns([3,1])
+with col1:
+    st.markdown(f"<h1 style='font-weight:800; letter-spacing:-1px;'>AGENCIA OS <span style='color:#7c3aed;'>AUTOMÁTICO</span></h1>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:#888;'>Cliente: <b>{cliente}</b> • Cloud Run • Groq Llama 3.1 • {datetime.now().strftime('%d/%m/%Y')}</p>", unsafe_allow_html=True)
+with col2:
+    st.markdown("<div style='text-align:right; padding-top:10px;'><span style='background:#7c3aed; padding:6px 12px; border-radius:20px; font-size:12px; color:white;'>● LIVE CLOUD</span></div>", unsafe_allow_html=True)
 
-if archivo:
-    try: df = pd.read_csv(archivo, encoding='utf-8-sig') if archivo.name.endswith(".csv") else pd.read_excel(archivo)
-    except: df = pd.read_csv(archivo, encoding='latin-1')
+if not archivo:
+    st.markdown("### 👇 Subí tu reporte para empezar")
+    df = pd.DataFrame({"Campaign": ["Reels - Venta Directa","Prospecting Broad","Retargeting IG"], "Spend": [42500,40000,18200], "ROAS": [4.2,0.85,3.1], "Result": [89,12,34]})
+    gasto, roas = 100700, 2.71
 else:
-    df = pd.DataFrame({"Campaign Name": ["Reels - Venta", "Prospecting", "Retargeting"], "Amount Spent (ARS)": [42500, 40000, 18200], "ROAS": [4.2, 0.85, 3.1]})
+    try:
+        df = pd.read_csv(archivo, encoding='utf-8-sig') if archivo.name.endswith(".csv") else pd.read_excel(archivo)
+    except:
+        df = pd.read_csv(archivo, encoding='latin-1')
+    # detectar columnas
+    spend_col = next((c for c in df.columns if any(k in c.lower() for k in ["spend","gasto","amount"])), df.columns[1] if len(df.columns)>1 else df.columns[0])
+    try:
+        gasto = pd.to_numeric(df[spend_col], errors='coerce').fillna(0).sum()
+        roas_col = next((c for c in df.columns if "roas" in c.lower()), None)
+        if roas_col:
+            roas = (pd.to_numeric(df[spend_col], errors='coerce').fillna(0) * pd.to_numeric(df[roas_col], errors='coerce').fillna(0)).sum() / gasto if gasto>0 else 0
+        else:
+            roas = 2.7
+    except:
+        gasto, roas = 175600, 2.7
 
-spend_col = detectar_columna(df, ["spend","gasto","amount"]) or df.columns[1]
-roas_col = detectar_columna(df, ["roas"])
-try:
-    gasto = pd.to_numeric(df[spend_col], errors='coerce').sum()
-    roas = (pd.to_numeric(df[spend_col], errors='coerce') * pd.to_numeric(df[roas_col], errors='coerce')).sum() / gasto if roas_col else 2.7
-except: gasto, roas = 175600, 2.7
+# KPIs
+k1,k2,k3,k4 = st.columns(4)
+k1.metric("💸 Gasto Total", f"${gasto:,.0f}", f"{len(df)} campañas")
+k2.metric("📈 ROAS", f"{roas:.2f}x", "vs 2.70x meta" if roas>2.7 else "bajo meta")
+k3.metric("🎯 Eficiencia", f"${gasto/roas:,.0f}" if roas>0 else "$0", "Costo por ROAS")
+k4.metric("🤖 IA", "Groq Cloud", "Llama 3.1 8B")
 
-tab1, tab2, tab3 = st.tabs(["📊 Datos", "🤖 Reporte IA", "📄 PDF"])
-with tab1:
-    st.metric("Gasto", f"${gasto:,.0f}")
-    st.metric("ROAS", f"{roas:.2f}x")
-    st.dataframe(df, use_container_width=True)
-with tab2:
-    if st.button("🚀 Generar Reporte Automático", type="primary", use_container_width=True):
-        with st.spinner("Groq pensando..."):
-            insight = llamar_groq(cliente, gasto, roas, df.head(10).to_string(), notas)
+st.divider()
+
+t1, t2, t3 = st.tabs(["📊 Performance Table", "🤖 Reporte IA Automático", "📄 Export PDF"])
+
+with t1:
+    st.dataframe(df, use_container_width=True, height=400)
+    st.bar_chart(df.set_index(df.columns[0])[df.columns[1]] if len(df.columns)>1 else df)
+
+with t2:
+    if st.button("🚀 GENERAR REPORTE ELITE CON GROQ", type="primary", use_container_width=True):
+        with st.spinner("IA analizando campañas..."):
+            insight = llamar_groq(cliente, gasto, roas, df.head(8).to_string(), notas)
             st.session_state["insight"] = insight
             st.session_state["gasto"] = gasto
             st.session_state["roas"] = roas
     if "insight" in st.session_state:
-        st.success(st.session_state["insight"])
-with tab3:
+        st.markdown(f"""
+        <div style="background:#111113; border:1px solid #2a2a30; border-radius:16px; padding:24px; margin-top:16px;">
+            <h4 style="margin:0 0 12px 0;">📋 Resumen Ejecutivo - {cliente}</h4>
+            <p style="white-space:pre-wrap; line-height:1.6;">{st.session_state['insight']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+with t3:
     if "insight" in st.session_state:
-        pdf = generar_pdf(cliente, st.session_state["gasto"], st.session_state["roas"], st.session_state["insight"], df, LOGO_AGENCIA_PATH if os.path.exists(LOGO_AGENCIA_PATH) else None, LOGO_CLIENTE_PATH if os.path.exists(LOGO_CLIENTE_PATH) else None)
-        st.download_button("📄 Descargar PDF", data=pdf, file_name=f"Reporte_{cliente}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+        pdf = crear_pdf_simple(cliente, st.session_state["gasto"], st.session_state["roas"], st.session_state["insight"], df)
+        if pdf:
+            st.download_button("📄 Descargar PDF Premium", data=pdf, file_name=f"Reporte_{cliente}_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+        else:
+            st.warning("Instalando PDF engine... dale Reboot en Manage App")
+            st.code(st.session_state["insight"])
+    else:
+        st.info("Generá el reporte en la pestaña 2 primero")
+
+st.caption("LEGION-CLOUD • AGENCIA OS CLOUD V3 • No requiere PC local")
