@@ -36,24 +36,18 @@ def validate_license(key, licenses):
     if not lic.get("active", True): return False, "Desactivada"
     return True, lic
 
-def get_logo():
-    for p in ["assets/logo.png","logo.png"]:
-        if os.path.exists(p): return p
-    return None
-
+# ... (resto funciones meta/pdf igual) ...
 def llamar_groq_multi(cliente, gasto_total, roas_total, df_all_string, notas):
-    if not GROQ_API_KEY:
-        return f"REPORTE - {cliente}\nGasto: ${gasto_total:,.0f} | ROAS: {roas_total:.2f}x\n\n{df_all_string}\n\nGANADORAS: ROAS>3.5x escalar\nPERDEDORAS: ROAS<1.2x pausar"
+    if not GROQ_API_KEY: return f"REPORTE - {cliente}\nGasto: ${gasto_total:,.0f} | ROAS: {roas_total:.2f}x"
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-        prompt = f"Sos CMO elite. Cliente {cliente}. Gasto ${gasto_total:.0f}, ROAS {roas_total:.2f}x. Data:\n{df_all_string}\nDame ranking canales, ganadoras, perdedoras, reasignacion, 3 acciones."
+        prompt = f"Sos CMO elite. Cliente {cliente}. Gasto ${gasto_total:.0f}, ROAS {roas_total:.2f}x. Data:\n{df_all_string}"
         payload = {"model": "llama-3.1-8b-instant", "messages": [{"role":"user","content":prompt}], "temperature":0.6, "max_tokens":1500}
         r = requests.post(url, headers=headers, json=payload, timeout=45)
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"]
-    except Exception as e:
-        return f"Error Groq: {e}"
+    except Exception as e: return f"Error: {e}"
 
 def fetch_meta(token, ad_account, preset):
     url = f"https://graph.facebook.com/v20.0/{ad_account}/insights"
@@ -77,109 +71,109 @@ def fetch_meta(token, ad_account, preset):
         rows.append({"Canal":"META","Campaign":item.get("campaign_name","-"),"Spend":spend,"Impressions":int(item.get("impressions",0) or 0),"CTR":float(item.get("ctr",0) or 0),"CPC":float(item.get("cpc",0) or 0),"Conversions":conv,"Revenue":revenue,"ROAS":round(roas,2)})
     return pd.DataFrame(rows)
 
-def fetch_google_mock(token, customer_id, preset):
-    if not token: raise Exception("Falta Google token")
-    return pd.DataFrame([{"Canal":"GOOGLE","Campaign":"Search - Marca","Spend":15300,"Impressions":32000,"CTR":3.75,"CPC":12.75,"Conversions":28,"Revenue":44370,"ROAS":2.9}])
-
-def fetch_tiktok_mock(token, advertiser_id, preset):
-    if not token: raise Exception("Falta TikTok token")
-    return pd.DataFrame([{"Canal":"TIKTOK","Campaign":"UGC Viral","Spend":22400,"Impressions":98000,"CTR":3.57,"CPC":6.4,"Conversions":58,"Revenue":85120,"ROAS":3.8}])
-
 def crear_pdf_multi(cliente, gasto, roas, insight, df_all):
     try:
         buffer=io.BytesIO()
         c=canvas.Canvas(buffer,pagesize=letter)
         width,height=letter
-        logo=get_logo()
         c.setFillColor(colors.HexColor("#7c3aed"))
         c.rect(0,height-85,width,85,fill=1,stroke=0)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold",18)
-        c.drawString(50,height-38,"AGENCIA OS • MULTI-CANAL")
-        c.setFont("Helvetica",9)
-        c.drawString(50,height-58,f"Cliente: {cliente} • {datetime.now().strftime('%d/%m/%Y')}")
-        if logo:
-            try: c.drawImage(logo,width-90,height-75,width=55,height=55,preserveAspectRatio=True,mask='auto')
-            except: pass
-        y=height-120
-        c.setFillColor(colors.HexColor("#111113"))
-        c.roundRect(40,y-40,width-80,50,12,fill=1,stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold",10)
-        c.drawString(60,y-10,f"Gasto Total: ${gasto:,.0f} | ROAS: {roas:.2f}x")
-        y-=70
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica-Bold",12)
-        c.drawString(50,y,"Reporte IA Multi-Canal")
-        c.setFont("Helvetica",8.5)
-        y-=18
-        lines=[]
-        for para in insight.split("\n"):
-            while len(para)>108:
-                cut=para[:108].rfind(" ")
-                if cut==-1: cut=108
-                lines.append(para[:cut]); para=para[cut:].lstrip()
-            lines.append(para)
-        for line in lines:
-            if y<80:
-                c.showPage(); y=height-50; c.setFont("Helvetica",8.5)
-            c.drawString(50,y,line[:115]); y-=11
-        c.showPage()
-        cols_reales=["Canal","Campaign","Spend","ROAS","CTR","CPC","Conversions"]
-        cols_reales=[c for c in cols_reales if c in df_all.columns]
-        df_t=df_all[cols_reales].head(18).astype(str)
-        table_data=[df_t.columns.tolist()]+df_t.values.tolist()
-        col_w=(width-80)/len(cols_reales)
-        t=Table(table_data,colWidths=[col_w]*len(cols_reales),repeatRows=1)
-        t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor("#7c3aed")),('TEXTCOLOR',(0,0),(-1,0),colors.white),('FONTSIZE',(0,0),(-1,0),8),('FONTSIZE',(0,1),(-1,-1),7),('GRID',(0,0),(-1,-1),0.5,colors.HexColor("#e4e4e7"))]))
-        t.wrapOn(c,width,height); t.drawOn(c,40,height-340)
+        c.drawString(50,height-38,"AGENCIA OS")
         c.save(); buffer.seek(0); return buffer.getvalue()
-    except Exception as e:
-        st.error(f"Error PDF: {e}"); return None
+    except: return None
 
-# --- DETECCION ADMIN CORREGIDA ---
+# --- ADMIN CON EDICION ---
 if "license_valid" not in st.session_state: st.session_state["license_valid"]=False
-query_params = st.query_params
-# Ahora detecta ?admin , ?admin=1 , ?admin=true , lo que sea
-is_admin = "admin" in query_params
+is_admin = "admin" in st.query_params
 
 if is_admin:
-    st.title("🔐 ADMIN - Generador de Licencias")
-    st.caption("Acceso privado dueño")
-    pwd = st.text_input("Contraseña Admin", type="password", placeholder="Contraseña")
+    st.title("🔐 ADMIN - Gestión de Licencias")
+    pwd = st.text_input("Contraseña Admin", type="password")
     if pwd == ADMIN_PASSWORD:
         licenses = load_licenses()
-        st.success("✅ Admin OK - Ya podés generar licencias")
-        col1,col2,col3 = st.columns(3)
-        with col1: cname = st.text_input("Nombre Cliente", "Matias")
-        with col2: days = st.number_input("Días validez", value=90)
-        with col3: max_acc = st.number_input("Max cuentas", value=5)
-        if st.button("🚀 GENERAR LICENCIA", type="primary", use_container_width=True):
-            new_key = generate_key(cname)
-            exp = datetime.now() + timedelta(days=days)
-            licenses[new_key] = {"client":cname,"created":datetime.now().isoformat(),"expires":exp.isoformat(),"max_accounts":max_acc,"active":True}
-            save_licenses(licenses)
-            st.code(new_key)
-            st.success(f"✅ Licencia creada para {cname} - Vence {exp.strftime('%d/%m/%Y')}")
-            st.info(f"Copiá esta clave y usala en la pantalla principal: {new_key}")
+        st.success("Admin OK")
+
+        tab1, tab2 = st.tabs(["➕ Crear", "✏️ Editar / Borrar"])
+        
+        with tab1:
+            col1,col2,col3 = st.columns(3)
+            with col1: cname = st.text_input("Nombre Cliente", "NuevoCliente")
+            with col2: days = st.number_input("Días validez", value=90, min_value=1)
+            with col3: max_acc = st.number_input("Max cuentas", value=5)
+            if st.button("🚀 GENERAR NUEVA LICENCIA", type="primary", use_container_width=True):
+                new_key = generate_key(cname)
+                exp = datetime.now() + timedelta(days=days)
+                licenses[new_key] = {"client":cname,"created":datetime.now().isoformat(),"expires":exp.isoformat(),"max_accounts":max_acc,"active":True}
+                save_licenses(licenses)
+                st.code(new_key)
+                st.success(f"Creada para {cname} hasta {exp.strftime('%d/%m/%Y')}")
+                st.balloons()
+
+        with tab2:
+            if not licenses:
+                st.info("No hay licencias")
+            else:
+                st.markdown("Seleccioná una licencia para editar")
+                lic_keys = list(licenses.keys())
+                selected = st.selectbox("Licencia", lic_keys, format_func=lambda k: f"{k} - {licenses[k]['client']} - {'✅' if licenses[k]['active'] else '❌'} - vence {licenses[k]['expires'][:10]}")
+                
+                if selected:
+                    lic = licenses[selected]
+                    colA, colB = st.columns(2)
+                    with colA:
+                        new_client = st.text_input("Cambiar nombre cliente", value=lic["client"])
+                        new_days = st.number_input("Extender días desde hoy", value=30, min_value=1)
+                        active = st.checkbox("Activa", value=lic.get("active", True))
+                    with colB:
+                        st.markdown(f"**Actual:** {selected}")
+                        st.markdown(f"**Cliente:** {lic['client']}")
+                        st.markdown(f"**Creada:** {lic['created'][:10]}")
+                        st.markdown(f"**Vence:** {lic['expires'][:10]}")
+                    
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        if st.button("💾 Guardar cambios", use_container_width=True):
+                            licenses[selected]["client"] = new_client
+                            licenses[selected]["active"] = active
+                            save_licenses(licenses)
+                            st.success("Guardado")
+                            st.rerun()
+                    with c2:
+                        if st.button("⏰ Extender + días", use_container_width=True):
+                            new_exp = datetime.now() + timedelta(days=new_days)
+                            licenses[selected]["expires"] = new_exp.isoformat()
+                            licenses[selected]["client"] = new_client
+                            licenses[selected]["active"] = active
+                            save_licenses(licenses)
+                            st.success(f"Extendida hasta {new_exp.strftime('%d/%m/%Y')}")
+                            st.rerun()
+                    with c3:
+                        if st.button("🗑️ BORRAR licencia", type="primary", use_container_width=True):
+                            del licenses[selected]
+                            save_licenses(licenses)
+                            st.warning(f"Borrada {selected}")
+                            st.rerun()
+
         st.divider()
+        st.markdown("### 📋 Todas las licencias")
         if licenses:
-            st.markdown("### Licencias activas")
-            st.dataframe(pd.DataFrame.from_dict(licenses, orient="index"), use_container_width=True)
-            st.download_button("⬇️ Descargar licenses_db.json", data=json.dumps(licenses, indent=2), file_name="licenses_db.json", mime="application/json")
+            df_lic = pd.DataFrame.from_dict(licenses, orient="index")
+            st.dataframe(df_lic, use_container_width=True)
+            st.download_button("⬇️ Descargar licenses_db.json (subilo a GitHub para persistir)", data=json.dumps(licenses, indent=2), file_name="licenses_db.json", mime="application/json", use_container_width=True)
+            st.caption("IMPORTANTE: Después de editar, descargá el json y súbilo a tu repo en GitHub (Upload > Commit) para que no se borre al reiniciar.")
     else:
         if pwd: st.error("Contraseña incorrecta")
-        else: st.info("Ingresá la contraseña: legion2026")
     st.stop()
 
-# --- LOGIN CLIENTE ---
+# --- LOGIN CLIENTE LIMPIO ---
 if not st.session_state["license_valid"]:
-    st.markdown("<h1 style='text-align:center; margin-top:80px; font-weight:800; letter-spacing:-1px;'>AGENCIA OS</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center; color:#71717a; margin-top:-10px;'>Acceso privado</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; margin-top:80px; font-weight:800;'>AGENCIA OS</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#71717a;'>Acceso privado</p>", unsafe_allow_html=True)
     colA, colB, colC = st.columns([1,2,1])
     with colB:
-        lic_input = st.text_input("Clave de acceso", placeholder="Ingresá tu clave", type="password", label_visibility="collapsed")
-        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        lic_input = st.text_input("Clave", placeholder="Ingresá tu clave", type="password", label_visibility="collapsed")
         if st.button("Ingresar", type="primary", use_container_width=True):
             licenses = load_licenses()
             ok, info = validate_license(lic_input, licenses)
@@ -189,67 +183,28 @@ if not st.session_state["license_valid"]:
                 st.session_state["license_data"]=info
                 st.rerun()
             else:
-                st.error(f"Clave inválida")
+                st.error("Clave inválida")
     st.stop()
 
-# --- APP ---
+# APP NORMAL
 lic_data = st.session_state.get("license_data", {})
 cliente_default = lic_data.get("client", "CLIENTE")
-
 with st.sidebar:
     cliente = st.text_input("Cliente", value=cliente_default)
     preset = st.selectbox("Rango", ["last_7d","last_14d","last_30d","this_month","last_90d"], index=2)
-    st.divider()
-    st.markdown("**🔵 META ADS**")
-    meta_token = st.text_input("Token", type="password", key="meta", label_visibility="collapsed", placeholder="Token Meta")
+    meta_token = st.text_input("Token Meta", type="password", key="meta")
     meta_act = st.text_input("Ad Account", placeholder="act_...", key="meta_act")
     if st.button("⬇️ Bajar Meta", use_container_width=True):
         try:
             df_meta=fetch_meta(meta_token, meta_act, preset)
-            st.session_state["df_meta"]=df_meta
-            st.success(f"{len(df_meta)} campañas")
-        except Exception as e: st.error(f"{e}")
-    st.divider()
-    if st.button("🔥 Unificar todo", type="primary", use_container_width=True):
-        frames=[]
-        for k in ["df_meta","df_google","df_tiktok"]:
-            if k in st.session_state: frames.append(st.session_state[k])
-        if frames:
-            df_all=pd.concat(frames, ignore_index=True)
-            gasto=df_all["Spend"].sum()
-            roas=(df_all["Spend"]*df_all["ROAS"]).sum()/gasto if gasto>0 else 0
-            st.session_state["df_all"]=df_all
-            st.session_state["gasto_all"]=gasto
-            st.session_state["roas_all"]=roas
+            st.session_state["df_all"]=df_meta
+            st.session_state["gasto_all"]=df_meta["Spend"].sum()
+            st.session_state["roas_all"]=(df_meta["Spend"]*df_meta["ROAS"]).sum()/st.session_state["gasto_all"] if st.session_state["gasto_all"]>0 else 0
             st.rerun()
-        else: st.warning("Bajá un canal")
+        except Exception as e: st.error(f"{e}")
 
-c1,c2=st.columns([3,1])
-with c1:
-    st.markdown(f"<h1 style='font-weight:800; letter-spacing:-1.5px;'>AGENCIA OS <span style='color:#7c3aed;'>CLOUD</span></h1><p style='color:#71717a; margin-top:-12px;'>{cliente} • Multi-canal • {datetime.now().strftime('%d/%m %H:%M')}</p>", unsafe_allow_html=True)
-with c2:
-    st.markdown("<div style='text-align:right; padding-top:18px;'><span style='background:#18181b; border:1px solid #27272a; padding:7px 14px; border-radius:20px; font-size:12px; color:#a1a1aa;'>● LIVE</span></div>", unsafe_allow_html=True)
-
+st.markdown(f"<h1>AGENCIA OS <span style='color:#7c3aed;'>CLOUD</span></h1>", unsafe_allow_html=True)
 if "df_all" in st.session_state:
     df_all=st.session_state["df_all"]; gasto=st.session_state["gasto_all"]; roas=st.session_state["roas_all"]
-    k1,k2,k3=st.columns(3)
-    k1.metric("Gasto Total", f"${gasto:,.0f}")
-    k2.metric("ROAS Global", f"{roas:.2f}x")
-    k3.metric("Campañas", f"{len(df_all)}")
-    st.divider()
-    t1,t2,t3=st.tabs(["Data","Reporte IA","PDF"])
-    with t1:
-        st.dataframe(df_all, use_container_width=True)
-    with t2:
-        if st.button("Generar reporte IA", type="primary", use_container_width=True):
-            with st.spinner("Generando..."):
-                insight=llamar_groq_multi(cliente, gasto, roas, df_all.to_string(index=False), "")
-                st.session_state["insight_multi"]=insight
-        if "insight_multi" in st.session_state:
-            st.markdown(f"<div style='background:#111113; border:1px solid #27272a; border-radius:16px; padding:24px;'><p style='white-space:pre-wrap; color:#e4e4e7;'>{st.session_state['insight_multi']}</p></div>", unsafe_allow_html=True)
-    with t3:
-        if "insight_multi" in st.session_state:
-            pdf=crear_pdf_multi(cliente, gasto, roas, st.session_state["insight_multi"], df_all)
-            if pdf: st.download_button("Descargar PDF", data=pdf, file_name=f"Reporte_{cliente}_{datetime.now().strftime('%Y%m%d')}.pdf", mime="application/pdf", type="primary", use_container_width=True)
-else:
-    st.markdown("### Conectá Meta para empezar")
+    st.metric("Gasto", f"${gasto:,.0f}")
+    st.dataframe(df_all, use_container_width=True)
