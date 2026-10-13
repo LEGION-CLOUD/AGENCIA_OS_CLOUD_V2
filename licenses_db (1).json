@@ -1,0 +1,16 @@
+{
+  "LEGION-Z3F0-2026-LULA": {
+    "client": "lula",
+    "created": "2026-10-13T20:31:04.729406",
+    "expires": "2026-11-12T20:31:04.729400",
+    "max_accounts": 3,
+    "active": true
+  },
+  "LEGION-9RLI-2026-NICO": {
+    "client": "nico",
+    "created": "2026-10-13T20:39:16.585420",
+    "expires": "2027-01-11T20:39:16.585415",
+    "max_accounts": 5,
+    "active": true
+  }
+}
