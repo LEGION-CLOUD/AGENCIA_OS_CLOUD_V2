@@ -1,24 +1,111 @@
 import streamlit as st
 import pandas as pd
+import requests
 import os, json, random, string, hashlib
 from datetime import datetime, timedelta
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
 
-LICENSE_FILE = "licenses_db.json"
 try:
     ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
 except Exception:
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
+
+
+SUPABASE_URL = st.secrets.get(
+    "SUPABASE_URL", os.environ.get("SUPABASE_URL", "")
+).rstrip("/")
+
+SUPABASE_SECRET_KEY = st.secrets.get(
+    "SUPABASE_SECRET_KEY",
+    os.environ.get("SUPABASE_SECRET_KEY", "")
+)
+
+SUPABASE_LICENSES_URL = f"{SUPABASE_URL}/rest/v1/agencia_os_licenses"
+
+
+def supabase_headers():
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        raise RuntimeError(
+            "Faltan SUPABASE_URL o SUPABASE_SECRET_KEY en Secrets."
+        )
+
+    return {
+        "apikey": SUPABASE_SECRET_KEY,
+        "Authorization": f"Bearer {SUPABASE_SECRET_KEY}",
+        "Content-Type": "application/json",
+    }
+
+
 def load_licenses():
-    if os.path.exists(LICENSE_FILE):
-        try:
-            with open(LICENSE_FILE, "r") as f: return json.load(f)
-        except: return {}
-    return {"LEGION-LULA-2026-LULA": {"client":"Lula","created":datetime.now().isoformat(),"expires":(datetime.now()+timedelta(days=90)).isoformat(),"max_accounts":5,"active":True}}
-def save_licenses(d):
-    with open(LICENSE_FILE, "w") as f: json.dump(d, f, indent=2)
+    try:
+        response = requests.get(
+            SUPABASE_LICENSES_URL,
+            headers=supabase_headers(),
+            params={
+                "select": "license_key,client,created,expires,max_accounts,active"
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+
+        records = response.json()
+        return {
+            row["license_key"]: {
+                "client": row["client"],
+                "created": row["created"],
+                "expires": row["expires"],
+                "max_accounts": row["max_accounts"],
+                "active": row["active"],
+            }
+            for row in records
+        }
+    except Exception as exc:
+        st.error(
+            "No se pudieron cargar las licencias desde Supabase. "
+            "Revisá Secrets y los permisos de la tabla. "
+            f"Detalle: {exc}"
+        )
+        st.stop()
+
+
+def save_licenses(licenses):
+    try:
+        headers = supabase_headers()
+        headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+
+        records = [
+            {
+                "license_key": key,
+                "client": lic["client"],
+                "created": lic["created"],
+                "expires": lic["expires"],
+                "max_accounts": int(lic["max_accounts"]),
+                "active": lic.get("active", True),
+            }
+            for key, lic in licenses.items()
+        ]
+
+        if not records:
+            return
+
+        response = requests.post(
+            SUPABASE_LICENSES_URL,
+            headers=headers,
+            params={"on_conflict": "license_key"},
+            json=records,
+            timeout=20,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        st.error(
+            "No se pudieron guardar las licencias en Supabase. "
+            "Revisá la conexión y los permisos. "
+            f"Detalle: {exc}"
+        )
+        st.stop()
+
 def generate_key(name):
     rand=''.join(random.choices(string.ascii_uppercase+string.digits,k=4))
     return f"LEGION-{rand}-{datetime.now().year}-{name[:4].upper()}"
