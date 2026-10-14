@@ -6,7 +6,10 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
 
 LICENSE_FILE = "licenses_db.json"
-ADMIN_PASSWORD = "legion2026"
+try:
+    ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
+except Exception:
+    ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 def load_licenses():
     if os.path.exists(LICENSE_FILE):
