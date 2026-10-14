@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 import requests
 import os, json, random, string, hashlib
@@ -112,6 +112,26 @@ def save_licenses(licenses):
             f"Detalle: {exc}"
         )
         st.stop()
+
+def delete_license(license_key):
+    try:
+        headers = supabase_headers()
+        headers["Prefer"] = "return=minimal"
+
+        response = requests.delete(
+            SUPABASE_LICENSES_URL,
+            headers=headers,
+            params={"license_key": f"eq.{license_key}"},
+            timeout=20,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        st.error(
+            "No se pudo eliminar la licencia en Supabase. "
+            f"Detalle: {exc}"
+        )
+        st.stop()
+
 
 def generate_key(name):
     rand=''.join(random.choices(string.ascii_uppercase+string.digits,k=4))
@@ -296,7 +316,67 @@ if is_admin:
             licenses[new_key]={"client":cname,"created":datetime.now().isoformat(),"expires":exp.isoformat(),"max_accounts":max_acc,"active":True}
             save_licenses(licenses)
             st.code(new_key)
-        st.dataframe(pd.DataFrame.from_dict(licenses,orient="index"),use_container_width=True)
+
+        st.dataframe(
+            pd.DataFrame.from_dict(licenses, orient="index"),
+            use_container_width=True,
+        )
+
+        st.markdown("### Gestionar licencias")
+
+        if licenses:
+            selected_key = st.selectbox(
+                "Seleccioná una licencia",
+                options=list(licenses.keys()),
+                format_func=lambda key: (
+                    f"{key} — {licenses[key]['client']}"
+                ),
+            )
+
+            selected_license = licenses[selected_key]
+            is_active = selected_license.get("active", True)
+
+            st.write(
+                f"**Estado:** {'Activa' if is_active else 'Desactivada'}"
+            )
+
+            col_estado, col_eliminar = st.columns(2)
+
+            with col_estado:
+                if is_active:
+                    if st.button(
+                        "Desactivar licencia",
+                        use_container_width=True,
+                    ):
+                        licenses[selected_key]["active"] = False
+                        save_licenses(licenses)
+                        st.success("Licencia desactivada.")
+                        st.rerun()
+                else:
+                    if st.button(
+                        "Reactivar licencia",
+                        use_container_width=True,
+                    ):
+                        licenses[selected_key]["active"] = True
+                        save_licenses(licenses)
+                        st.success("Licencia reactivada.")
+                        st.rerun()
+
+            with col_eliminar:
+                confirmar = st.checkbox(
+                    "Confirmo que quiero eliminarla",
+                    key=f"confirmar_borrado_{selected_key}",
+                )
+
+                if st.button(
+                    "Eliminar definitivamente",
+                    disabled=not confirmar,
+                    use_container_width=True,
+                ):
+                    delete_license(selected_key)
+                    st.success("Licencia eliminada.")
+                    st.rerun()
+
         st.download_button("licenses_db.json",data=json.dumps(licenses,indent=2),file_name="licenses_db.json",mime="application/json")
     st.stop()
 
