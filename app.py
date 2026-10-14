@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
 import requests
 import os, json, random, string, hashlib
@@ -25,6 +25,7 @@ SUPABASE_SECRET_KEY = st.secrets.get(
 SUPABASE_LICENSES_URL = f"{SUPABASE_URL}/rest/v1/agencia_os_licenses"
 
 
+
 def supabase_headers():
     if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
         raise RuntimeError(
@@ -35,6 +36,8 @@ def supabase_headers():
         "apikey": SUPABASE_SECRET_KEY,
         "Authorization": f"Bearer {SUPABASE_SECRET_KEY}",
         "Content-Type": "application/json",
+        "Accept-Profile": "public",
+        "Content-Profile": "public",
     }
 
 
