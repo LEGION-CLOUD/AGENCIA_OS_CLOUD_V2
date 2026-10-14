@@ -61,11 +61,15 @@ def load_licenses():
             }
             for row in records
         }
+
     except Exception as exc:
+        detalle = str(exc)
+        if "response" in locals():
+            detalle += f" | HTTP: {response.status_code}"
+            detalle += f" | Respuesta: {response.text[:1000]}"
         st.error(
             "No se pudieron cargar las licencias desde Supabase. "
-            "Revisá Secrets y los permisos de la tabla. "
-            f"Detalle: {exc}"
+            f"Detalle técnico: {detalle}"
         )
         st.stop()
 
