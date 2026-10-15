@@ -10,8 +10,28 @@ from meta_ads import (
     meta_date_range,
     normalize_ad_account,
 )
+from google_ads import (
+    GoogleAdsError,
+    OAUTH_CALLBACK_QUERY_KEYS,
+    build_authorization_url,
+    capture_oauth_callback,
+    complete_oauth_callback,
+    create_oauth_state,
+    fetch_google_campaigns,
+    fingerprint_license,
+    get_valid_access_token,
+    load_oauth_config,
+    normalize_customer_id,
+)
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
+st.session_state.pop("google_oauth_state", None)
+
+if capture_oauth_callback(st.query_params, st.session_state):
+    for key in OAUTH_CALLBACK_QUERY_KEYS:
+        if key in st.query_params:
+            del st.query_params[key]
+    st.rerun()
 
 try:
     ADMIN_PASSWORD = st.secrets["ADMIN_PASSWORD"]
@@ -409,6 +429,13 @@ if is_admin:
         st.download_button("licenses_db.json",data=json.dumps(licenses,indent=2),file_name="licenses_db.json",mime="application/json")
     st.stop()
 
+google_config = None
+google_config_error = None
+try:
+    google_config = load_oauth_config(_secrets)
+except GoogleAdsError as exc:
+    google_config_error = str(exc)
+
 if not st.session_state["license_valid"]:
     st.markdown("<h1 style='text-align:center; margin-top:80px; font-weight:800;'>AGENCIA OS</h1>",unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#71717a;'>Acceso privado</p>",unsafe_allow_html=True)
@@ -419,13 +446,68 @@ if not st.session_state["license_valid"]:
             licenses=load_licenses()
             ok,info=validate_license(lic_input,licenses)
             if ok:
+                if google_config is not None:
+                    current_license_fingerprint = fingerprint_license(
+                        lic_input,
+                        google_config,
+                    )
+                    if (
+                        st.session_state.get("google_oauth_license_fingerprint")
+                        != current_license_fingerprint
+                    ):
+                        st.session_state.pop("google_oauth_credentials", None)
+                        st.session_state.pop("df_google", None)
+                        st.session_state.pop("google_report", None)
+                    st.session_state["google_license_fingerprint"] = (
+                        current_license_fingerprint
+                    )
                 st.session_state["license_valid"]=True; st.session_state["license_data"]=info; st.rerun()
             else: st.error("Clave inválida")
     st.stop()
 
+google_license_fingerprint = st.session_state.get("google_license_fingerprint")
+google_oauth_notice = st.session_state.pop("google_oauth_notice", None)
+pending_oauth_callback = st.session_state.get("google_oauth_pending_callback")
+if pending_oauth_callback is not None and google_license_fingerprint:
+    st.session_state.pop("google_oauth_pending_callback", None)
+    if google_config is None:
+        google_oauth_notice = (
+            "No se pudo validar la autorización porque falta configurar Google OAuth."
+        )
+    else:
+        try:
+            google_credentials = complete_oauth_callback(
+                pending_oauth_callback.get("code"),
+                pending_oauth_callback.get("state"),
+                google_config,
+                google_license_fingerprint,
+                oauth_error=pending_oauth_callback.get("error"),
+            )
+        except GoogleAdsError as exc:
+            google_oauth_notice = str(exc)
+        else:
+            previous_credentials = st.session_state.get(
+                "google_oauth_credentials", {}
+            )
+            if (
+                not google_credentials["refresh_token"]
+                and st.session_state.get("google_oauth_license_fingerprint")
+                == google_license_fingerprint
+                and previous_credentials.get("refresh_token")
+            ):
+                google_credentials["refresh_token"] = previous_credentials[
+                    "refresh_token"
+                ]
+            st.session_state["google_oauth_credentials"] = google_credentials
+            st.session_state["google_oauth_license_fingerprint"] = (
+                google_license_fingerprint
+            )
+            google_oauth_notice = "Google Ads quedó conectado para esta sesión."
+
 lic_data=st.session_state.get("license_data",{})
 cliente_default=lic_data.get("client","CLIENTE")
 meta_download_requested = False
+google_download_requested = False
 with st.sidebar:
     st.markdown(f"### {cliente_default}")
     cliente=st.text_input("Cliente",value=cliente_default)
@@ -474,9 +556,85 @@ with st.sidebar:
     if st.button("Bajar META",use_container_width=True):
         meta_download_requested = True
     st.markdown("**GOOGLE**")
-    if st.button("Bajar GOOGLE",use_container_width=True):
-        st.session_state.pop("df_google",None)
-        st.warning("La integración de Google Ads no está configurada; no se descargaron datos.")
+    if google_oauth_notice:
+        st.info(google_oauth_notice)
+    if google_config_error:
+        st.warning(google_config_error)
+    elif google_config:
+        if not google_license_fingerprint:
+            st.warning(
+                "Revalidá la licencia para vincular la autorización de Google Ads."
+            )
+            google_license_input = st.text_input(
+                "Licencia para Google Ads",
+                type="password",
+                key="google_license_revalidation",
+            )
+            if st.button("Validar licencia para Google Ads", use_container_width=True):
+                licenses = load_licenses()
+                license_is_valid, _ = validate_license(
+                    google_license_input,
+                    licenses,
+                )
+                if license_is_valid:
+                    current_license_fingerprint = fingerprint_license(
+                        google_license_input,
+                        google_config,
+                    )
+                    if (
+                        st.session_state.get("google_oauth_license_fingerprint")
+                        != current_license_fingerprint
+                    ):
+                        st.session_state.pop("google_oauth_credentials", None)
+                        st.session_state.pop("df_google", None)
+                        st.session_state.pop("google_report", None)
+                    st.session_state["google_license_fingerprint"] = (
+                        current_license_fingerprint
+                    )
+                    st.rerun()
+                else:
+                    st.error("La licencia no es válida.")
+        else:
+            google_credentials = st.session_state.get("google_oauth_credentials")
+            if (
+                google_credentials
+                and st.session_state.get("google_oauth_license_fingerprint")
+                != google_license_fingerprint
+            ):
+                st.session_state.pop("google_oauth_credentials", None)
+                st.session_state.pop("df_google", None)
+                st.session_state.pop("google_report", None)
+                google_credentials = None
+            if not google_credentials:
+                google_state = create_oauth_state(
+                    google_config,
+                    google_license_fingerprint,
+                )
+                st.link_button(
+                    "Conectar Google Ads",
+                    build_authorization_url(google_config, google_state),
+                    use_container_width=True,
+                )
+            else:
+                st.success("Google Ads conectado en esta sesión.")
+                google_customer_id = st.text_input(
+                    "ID de cliente Google Ads",
+                    key="google_customer_id",
+                    help="Ingresá el ID de 10 dígitos, con o sin guiones.",
+                )
+                google_login_customer_id = st.text_input(
+                    "ID de cuenta administradora (opcional)",
+                    key="google_login_customer_id",
+                    help="Completalo solo si accedés al cliente mediante una cuenta administradora.",
+                )
+                if st.button("Bajar GOOGLE",use_container_width=True):
+                    google_download_requested = True
+                if st.button("Desconectar Google Ads",use_container_width=True):
+                    st.session_state.pop("google_oauth_credentials", None)
+                    st.session_state.pop("google_oauth_license_fingerprint", None)
+                    st.session_state.pop("df_google", None)
+                    st.session_state.pop("google_report", None)
+                    st.rerun()
     st.markdown("**TIKTOK**")
     if st.button("Bajar TIKTOK",use_container_width=True):
         st.session_state.pop("df_tiktok",None)
@@ -510,6 +668,78 @@ with st.sidebar:
             st.session_state["roas_all"]=roas_all
             st.success("Unificado"); st.rerun()
         else: st.warning("Bajá un canal que haya devuelto datos reales.")
+
+if google_download_requested:
+    for key in ("df_all", "gasto_all", "roas_all", "df_google", "google_report"):
+        st.session_state.pop(key, None)
+    google_selected_period = None
+    google_display_customer_id = None
+    try:
+        google_selected_period = meta_date_range(
+            preset,
+            custom_start=custom_start,
+            custom_end=custom_end,
+        )
+        normalized_customer_id = normalize_customer_id(google_customer_id)
+        google_display_customer_id = normalized_customer_id
+        credentials = st.session_state["google_oauth_credentials"]
+        with st.spinner("Consultando Google Ads..."):
+            access_token = get_valid_access_token(credentials, google_config)
+            df_google = fetch_google_campaigns(
+                access_token,
+                normalized_customer_id,
+                google_selected_period,
+                login_customer_id=google_login_customer_id or None,
+            )
+    except (GoogleAdsError, ValueError) as exc:
+        st.session_state["google_report"] = {
+            "customer_id": google_display_customer_id,
+            "period": google_selected_period,
+            "status": "error",
+            "message": str(exc),
+        }
+    else:
+        st.session_state["df_google"] = df_google
+        st.session_state["google_report"] = {
+            "customer_id": normalized_customer_id,
+            "period": google_selected_period,
+            "status": "empty" if df_google.empty else "data",
+        }
+
+if "google_report" in st.session_state:
+    google_report = st.session_state["google_report"]
+    st.markdown("### GOOGLE ADS — resultados históricos")
+    if google_report["period"]:
+        since, until = google_report["period"]
+        account_context = (
+            f"Cuenta consultada: {google_report['customer_id']} · "
+            if google_report["customer_id"]
+            else ""
+        )
+        st.caption(f"{account_context}Período: {since} a {until}. No son datos en tiempo real.")
+    if google_report["status"] == "error":
+        st.warning(
+            "No se completó la consulta de Google Ads: "
+            f"{google_report['message']}"
+        )
+    elif google_report["status"] == "empty":
+        st.info("Google Ads respondió correctamente sin campañas en el período consultado.")
+    elif google_report["status"] == "data":
+        df_google = st.session_state["df_google"]
+        st.success(f"Google Ads devolvió {len(df_google)} filas de métricas.")
+        st.caption(
+            "Revenue refleja el valor de conversión configurado en Google Ads; "
+            "no necesariamente equivale a ventas monetarias."
+        )
+        st.dataframe(df_google, use_container_width=True)
+        st.download_button(
+            "Descargar informe GOOGLE ADS (CSV)",
+            data=df_google.to_csv(index=False).encode("utf-8-sig"),
+            file_name=f"google_ads_campanas_{since}_{until}.csv",
+            mime="text/csv",
+            key="download_google_csv",
+            use_container_width=True,
+        )
 
 if meta_download_requested:
     for key in (
