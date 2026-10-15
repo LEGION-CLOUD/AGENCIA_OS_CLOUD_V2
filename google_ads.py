@@ -164,17 +164,17 @@ def create_oauth_state(config, license_fingerprint, *, now=None):
 def build_authorization_url(config, state):
     if not isinstance(state, str) or not state:
         raise ValueError("Falta el estado de seguridad OAuth.")
-    return f"{OAUTH_AUTHORIZATION_ENDPOINT}?{urlencode({
-        'client_id': config.client_id,
-        'redirect_uri': config.redirect_uri,
-        'response_type': 'code',
-        'scope': GOOGLE_ADS_SCOPE,
-        'access_type': 'offline',
-        'include_granted_scopes': 'true',
-        'prompt': 'consent',
-        'state': state,
-    })}"
-
+    params = {
+        "client_id": config.client_id,
+        "redirect_uri": config.redirect_uri,
+        "response_type": "code",
+        "scope": GOOGLE_ADS_SCOPE,
+        "access_type": "offline",
+        "include_granted_scopes": "true",
+        "prompt": "consent",
+        "state": state,
+    }
+    return f"{OAUTH_AUTHORIZATION_ENDPOINT}?{urlencode(params)}"
 
 def validate_oauth_state(state, config, expected_license_fingerprint, *, now=None):
     if (
