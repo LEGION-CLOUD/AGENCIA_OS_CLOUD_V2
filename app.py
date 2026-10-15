@@ -2,7 +2,14 @@ import streamlit as st
 import pandas as pd
 import requests
 import os, json, random, string, hashlib
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from meta_ads import (
+    CAMPAIGN_COLUMNS,
+    MetaAdsError,
+    fetch_meta_insights,
+    meta_date_range,
+    normalize_ad_account,
+)
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
 
@@ -12,12 +19,16 @@ except Exception:
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 
+try:
+    _secrets = dict(st.secrets)
+except Exception:
+    _secrets = {}
 
-SUPABASE_URL = st.secrets.get(
+SUPABASE_URL = _secrets.get(
     "SUPABASE_URL", os.environ.get("SUPABASE_URL", "")
 ).rstrip("/")
 
-SUPABASE_SECRET_KEY = st.secrets.get(
+SUPABASE_SECRET_KEY = _secrets.get(
     "SUPABASE_SECRET_KEY",
     os.environ.get("SUPABASE_SECRET_KEY", "")
 )
@@ -256,24 +267,24 @@ def analisis_real_diferenciado(competidor):
         como_superar = f"Comparativa directa vs {competidor} atacando {data['debil']}"
         idea1, idea2, idea3 = f"Vs {competidor} test", f"Errores de {competidor}", f"Reacción a {competidor}"
 
-    return f"""ANÁLISIS - {competidor.upper()} - {industria}
+    return f"""ANÁLISIS ORIENTATIVO - {competidor.upper()} - {industria}
 
-FICHA
+FICHA ORIENTATIVA (NO VERIFICADA)
 - Posicionamiento: {data['pos']}
 - Fuerte: {data['fuerte']}
 - Débil: {data['debil']}
-- Ticket promedio: ${data['ticket']:,}
+- Ticket orientativo: ${data['ticket']:,}
 
-1. TOP 3 HOOKS QUE USAN HOY
+1. HIPÓTESIS DE HOOKS (NO VERIFICADAS EN ANUNCIOS ACTUALES)
    {h1}
    {h2}
    {h3}
 
-2. FORMATO QUE MÁS REPITEN
+2. FORMATOS SUGERIDOS (NO OBSERVADOS)
    {formato1}
    {formato2}
 
-3. ÁNGULO PRINCIPAL
+3. ÁNGULO SUGERIDO
    {angulo}
 
 4. COMO SUPERARLOS
@@ -285,19 +296,37 @@ FICHA
    IDEA 3: {idea3}
 """
 
-def fetch_meta_free(token, ad_account, preset):
-    if not token or not ad_account or len(token) < 20:
-        return pd.DataFrame([
-            {"Canal":"META","Campaign":"Reels UGC - Ganadora","Spend":42500,"Impressions":72000,"CTR":4.2,"CPC":5.8,"Conversions":68,"Revenue":178500,"ROAS":4.2},
-            {"Canal":"META","Campaign":"Carrusel - Beneficios","Spend":18900,"Impressions":34000,"CTR":2.8,"CPC":7.2,"Conversions":22,"Revenue":41580,"ROAS":2.2},
-            {"Canal":"META","Campaign":"Static - Perdedora","Spend":12000,"Impressions":15000,"CTR":0.9,"CPC":12.5,"Conversions":3,"Revenue":9600,"ROAS":0.8},
-        ])
-    return pd.DataFrame([{"Canal":"META","Campaign":"Real - Token OK","Spend":50000,"Impressions":80000,"CTR":3.5,"CPC":6,"Conversions":80,"Revenue":200000,"ROAS":4.0}])
+def fetch_meta_free(
+    token,
+    ad_account,
+    preset,
+    custom_start=None,
+    custom_end=None,
+    selected_period=None,
+):
+    if not token or not token.strip() or not ad_account or not ad_account.strip():
+        st.error("Ingresá el token de Meta y el ID de la cuenta publicitaria.")
+        return None
+
+    try:
+        period = selected_period or meta_date_range(
+            preset,
+            custom_start=custom_start,
+            custom_end=custom_end,
+        )
+        return fetch_meta_insights(token, ad_account, period)
+    except (ValueError, MetaAdsError) as exc:
+        st.error(str(exc))
+
+    return None
+
 
 def fetch_google_free():
-    return pd.DataFrame([{"Canal":"GOOGLE","Campaign":"Search Marca","Spend":15300,"Impressions":32000,"CTR":3.75,"CPC":12.75,"Conversions":28,"Revenue":44370,"ROAS":2.9},{"Canal":"GOOGLE","Campaign":"PMax","Spend":8900,"Impressions":15000,"CTR":2.1,"CPC":8.5,"Conversions":12,"Revenue":18900,"ROAS":2.12}])
+    return pd.DataFrame(columns=CAMPAIGN_COLUMNS)
+
+
 def fetch_tiktok_free():
-    return pd.DataFrame([{"Canal":"TIKTOK","Campaign":"UGC Viral","Spend":22400,"Impressions":98000,"CTR":3.57,"CPC":6.4,"Conversions":58,"Revenue":85120,"ROAS":3.8}])
+    return pd.DataFrame(columns=CAMPAIGN_COLUMNS)
 
 if "license_valid" not in st.session_state: st.session_state["license_valid"]=False
 is_admin="admin" in st.query_params
@@ -396,41 +425,186 @@ if not st.session_state["license_valid"]:
 
 lic_data=st.session_state.get("license_data",{})
 cliente_default=lic_data.get("client","CLIENTE")
+meta_download_requested = False
 with st.sidebar:
     st.markdown(f"### {cliente_default}")
     cliente=st.text_input("Cliente",value=cliente_default)
-    preset=st.selectbox("Rango",["last_7d","last_14d","last_30d"],index=2)
+    preset=st.selectbox(
+        "Rango",
+        ["last_7d","last_14d","last_30d","custom"],
+        index=2,
+        format_func=lambda value: {
+            "last_7d": "Últimos 7 días",
+            "last_14d": "Últimos 14 días",
+            "last_30d": "Últimos 30 días",
+            "custom": "Fechas personalizadas",
+        }[value],
+    )
+    custom_start = None
+    custom_end = None
+    if preset == "custom":
+        custom_start = st.date_input(
+            "Desde",
+            value=date.today() - timedelta(days=30),
+            key="meta_custom_start",
+        )
+        custom_end = st.date_input(
+            "Hasta",
+            value=date.today() - timedelta(days=1),
+            key="meta_custom_end",
+        )
+        if custom_start <= custom_end:
+            st.caption(
+                f"Período seleccionado: {custom_start.isoformat()} a "
+                f"{custom_end.isoformat()} (histórico)."
+            )
+        else:
+            st.warning("La fecha de inicio no puede ser posterior a la fecha de fin.")
+    else:
+        selected_period = meta_date_range(preset)
+        st.caption(
+            f"Período seleccionado: {selected_period[0]} a "
+            f"{selected_period[1]} (histórico)."
+        )
     st.divider()
     st.markdown("**META**")
     meta_token=st.text_input("Token Meta",type="password",key="meta")
     meta_act=st.text_input("Ad Account",key="meta_act")
+    st.caption("La conexión actual requiere un token manual; no usa OAuth.")
     if st.button("Bajar META",use_container_width=True):
-        st.session_state["df_meta"]=fetch_meta_free(meta_token,meta_act,preset); st.success("META cargado")
+        meta_download_requested = True
     st.markdown("**GOOGLE**")
     if st.button("Bajar GOOGLE",use_container_width=True):
-        st.session_state["df_google"]=fetch_google_free(); st.success("GOOGLE cargado")
+        st.session_state.pop("df_google",None)
+        st.warning("La integración de Google Ads no está configurada; no se descargaron datos.")
     st.markdown("**TIKTOK**")
     if st.button("Bajar TIKTOK",use_container_width=True):
-        st.session_state["df_tiktok"]=fetch_tiktok_free(); st.success("TIKTOK cargado")
+        st.session_state.pop("df_tiktok",None)
+        st.warning("La integración de TikTok Ads no está configurada; no se descargaron datos.")
     st.divider()
     if st.button("UNIFICAR TODO",type="primary",use_container_width=True):
-        frames=[st.session_state[k] for k in ["df_meta","df_google","df_tiktok"] if k in st.session_state]
+        frames=[
+            st.session_state[key]
+            for key in ["df_meta","df_google","df_tiktok"]
+            if key in st.session_state and not st.session_state[key].empty
+        ]
         if frames:
             df_all=pd.concat(frames,ignore_index=True)
-            st.session_state["df_all"]=df_all; st.session_state["gasto_all"]=df_all["Spend"].sum(); st.session_state["roas_all"]=(df_all["Spend"]*df_all["ROAS"]).sum()/st.session_state["gasto_all"]
+            gasto_all = (
+                df_all["Spend"].sum()
+                if df_all["Spend"].notna().all()
+                else None
+            )
+            revenue_all = (
+                df_all["Revenue"].sum()
+                if df_all["Revenue"].notna().all()
+                else None
+            )
+            roas_all = (
+                revenue_all / gasto_all
+                if revenue_all is not None and gasto_all is not None and gasto_all > 0
+                else None
+            )
+            st.session_state["df_all"]=df_all
+            st.session_state["gasto_all"]=gasto_all
+            st.session_state["roas_all"]=roas_all
             st.success("Unificado"); st.rerun()
-        else: st.warning("Bajá un canal")
+        else: st.warning("Bajá un canal que haya devuelto datos reales.")
+
+if meta_download_requested:
+    for key in (
+        "df_all",
+        "gasto_all",
+        "roas_all",
+        "df_meta",
+        "meta_period",
+        "meta_query",
+        "meta_result_status",
+    ):
+        st.session_state.pop(key, None)
+    try:
+        selected_period = meta_date_range(
+            preset,
+            custom_start=custom_start,
+            custom_end=custom_end,
+        )
+        normalized_account = normalize_ad_account(meta_act)
+    except ValueError as exc:
+        st.error(str(exc))
+        st.session_state["meta_result_status"] = "error"
+    else:
+        st.session_state["meta_period"] = selected_period
+        st.session_state["meta_query"] = {
+            "account": normalized_account,
+            "period": selected_period,
+        }
+        with st.spinner("Consultando Meta Ads..."):
+            df_meta = fetch_meta_free(
+                meta_token,
+                meta_act,
+                preset,
+                custom_start=custom_start,
+                custom_end=custom_end,
+                selected_period=selected_period,
+            )
+        if df_meta is None:
+            st.session_state["meta_result_status"] = "error"
+        else:
+            st.session_state["df_meta"] = df_meta
+            st.session_state["meta_result_status"] = (
+                "empty" if df_meta.empty else "data"
+            )
+
+if "meta_query" in st.session_state:
+    meta_query = st.session_state["meta_query"]
+    since, until = meta_query["period"]
+    st.markdown("### META — resultados históricos")
+    st.caption(
+        f"Cuenta consultada: {meta_query['account']} · "
+        f"Período: {since} a {until}. No son datos en tiempo real."
+    )
+    if st.session_state.get("meta_result_status") == "error":
+        st.warning("La consulta no se completó; no se muestran métricas de esta solicitud.")
+    elif st.session_state.get("meta_result_status") == "empty":
+        st.info("Meta respondió correctamente sin campañas para el período consultado.")
+    elif st.session_state.get("meta_result_status") == "data":
+        df_meta = st.session_state["df_meta"]
+        metric_columns = ["Spend", "Impressions", "CTR", "CPC", "Conversions", "Revenue"]
+        if df_meta[metric_columns].notna().any().any():
+            st.success(f"Meta devolvió {len(df_meta)} campañas con resultados.")
+        else:
+            st.warning("Meta devolvió campañas, pero no valores para las métricas solicitadas.")
+        st.dataframe(df_meta, use_container_width=True)
+        st.download_button(
+            "Descargar informe META (CSV)",
+            data=df_meta.to_csv(index=False).encode("utf-8-sig"),
+            file_name=f"meta_campanas_{since}_{until}.csv",
+            mime="text/csv",
+            key="download_meta_csv",
+            use_container_width=True,
+        )
 
 if "df_all" in st.session_state:
     df_all=st.session_state["df_all"]
     k1,k2,k3=st.columns(3)
-    k1.metric("Gasto",f"${st.session_state['gasto_all']:,.0f}"); k2.metric("ROAS",f"{st.session_state['roas_all']:.2f}x"); k3.metric("Campañas",len(df_all))
+    gasto_display = (
+        f"${st.session_state['gasto_all']:,.0f}"
+        if st.session_state["gasto_all"] is not None
+        else "No disponible"
+    )
+    roas_display = (
+        f"{st.session_state['roas_all']:.2f}x"
+        if st.session_state["roas_all"] is not None
+        else "No disponible"
+    )
+    k1.metric("Gasto",gasto_display); k2.metric("ROAS",roas_display); k3.metric("Campañas",len(df_all))
     st.dataframe(df_all,use_container_width=True)
 
 st.divider()
 t1,t2=st.tabs(["ESPIA COMPETIDORES","CLONADOR"])
 
 with t1:
+    st.caption("Demostrativo: genera hipótesis locales; no consulta ni verifica anuncios actuales.")
     comp=st.text_input("Marca",placeholder="coto, dia, carrefour, levis, zara, fravega...")
     c1,c2=st.columns(2)
     with c1:
@@ -444,11 +618,11 @@ with t1:
                 otra = "dia" if "coto" in comp.lower() else "coto"
                 st.session_state["spy_res"]=analisis_real_diferenciado(comp)+"\n\n--- VS ---\n\n"+analisis_real_diferenciado(otra)
     if "spy_res" in st.session_state:
-        st.markdown(f"<div style='background:#18181b; border:1px solid #27272a; border-radius:12px; padding:20px;'><p style='white-space:pre-wrap;'>{st.session_state['spy_res']}</p></div>",unsafe_allow_html=True)
+        st.text(st.session_state["spy_res"])
 
 with t2:
     st.markdown("### Clonador")
     desc=st.text_input("Tu ganadora")
     comp_clone=st.text_input("Competidor")
     if st.button("CLONAR"):
-        st.success(f"Clonado para {comp_clone} - 5 variaciones")
+        st.warning("El clonador todavía no genera variaciones; no se realizó una clonación.")
