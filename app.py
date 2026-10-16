@@ -352,7 +352,7 @@ if "license_valid" not in st.session_state: st.session_state["license_valid"]=Fa
 is_admin="admin" in st.query_params
 if is_admin:
     if not isinstance(ADMIN_PASSWORD, str) or not ADMIN_PASSWORD.strip():
-        st.error("El acceso administrativo no est? configurado.")
+        st.error("El acceso administrativo no está configurado.")
         st.stop()
     st.title("ADMIN")
     pwd=st.text_input("Contraseña",type="password")
