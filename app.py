@@ -78,7 +78,7 @@ def load_licenses():
             SUPABASE_LICENSES_URL,
             headers=supabase_headers(),
             params={
-                "select": "license_key,client,created,expires,max_account,active"
+                "select": "license_key,client,created,expires,max_accounts,active"
             },
             timeout=20,
         )
@@ -90,7 +90,7 @@ def load_licenses():
                 "client": row["client"],
                 "created": row["created"],
                 "expires": row["expires"],
-                "max_accounts": row["max_account"],
+                "max_accounts": row["max_accounts"],
                 "active": row["active"],
             }
             for row in records
@@ -119,7 +119,7 @@ def save_licenses(licenses):
                 "client": lic["client"],
                 "created": lic["created"],
                 "expires": lic["expires"],
-                "max_account": int(lic["max_accounts"]),
+                "max_accounts": int(lic["max_accounts"]),
                 "active": lic.get("active", True),
             }
             for key, lic in licenses.items()
