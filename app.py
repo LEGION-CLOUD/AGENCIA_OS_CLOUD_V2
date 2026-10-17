@@ -34,6 +34,7 @@ from tiktok_ads import (
     fetch_campaign_report,
     normalize_advertiser_id,
 )
+from ad_copy import generate_ad_proposals
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
 st.markdown(
@@ -1917,113 +1918,18 @@ with t2:
         if not desc.strip():
             st.warning("Describe tu producto, servicio u oferta.")
         else:
-            offer = desc.strip().rstrip(".!?")
             benefits_text = benefits.strip().rstrip(".")
             promo_text = promo.strip().rstrip(".")
             reference_text = st.session_state.get("spy_ad_reference_text", "").strip()
             reference_hook = st.session_state.get("spy_ad_reference_hook", "").strip()
             reference_brand = comp_clone.strip()
 
-            if objective == "Ventas":
-                ctas = [
-                    "Consulta precio y disponibilidad.",
-                    "Escribinos para conocer las opciones.",
-                    "Hacé tu consulta antes de decidir.",
-                ]
-            elif objective == "Generar consultas":
-                ctas = [
-                    "Contanos qué necesitás.",
-                    "Escribinos y consultá los detalles.",
-                    "Dejanos tu consulta y te orientamos.",
-                ]
-            else:
-                ctas = [
-                    "Conocé la propuesta.",
-                    "Descubrí más sobre esta opción.",
-                    "Conocé los detalles.",
-                ]
-
-            offer_norm = "".join(
-                ch for ch in __import__("unicodedata").normalize("NFKD", offer.casefold())
-                if not __import__("unicodedata").combining(ch)
+            proposals = generate_ad_proposals(
+                desc,
+                benefits_text,
+                promo_text,
+                objective,
             )
-            prefix = "servicio de instalacion de "
-            if offer_norm.startswith(prefix):
-                item = offer[len(prefix):].strip()
-                item_norm = "".join(
-                    ch for ch in __import__("unicodedata").normalize("NFKD", item.casefold())
-                    if not __import__("unicodedata").combining(ch)
-                )
-                if item_norm == "aire acondicionado":
-                    offer_for_copy = "la instalación de tu aire acondicionado"
-                    title_1 = "¿Estás por instalar tu aire acondicionado?"
-                    body_1 = (
-                        "Consultá por la instalación de tu aire acondicionado "
-                        "y conocé los detalles antes de decidir."
-                    )
-                else:
-                    offer_for_copy = f"la instalación de {item}"
-                    title_1 = f"¿Estás por instalar {item}?"
-                    body_1 = (
-                        f"Consultá por la instalación de {item} "
-                        "y conocé los detalles antes de decidir."
-                    )
-            else:
-                offer_for_copy = offer
-                title_1 = f"¿Buscás {offer}?"
-                body_1 = (
-                    f"Conocé la propuesta de {offer} y consultá los detalles "
-                    "para evaluar si se ajusta a lo que necesitás."
-                )
-
-            benefit_line = f" Beneficios informados: {benefits_text}." if benefits_text else ""
-            promo_line = f" Promoción informada: {promo_text}." if promo_text else ""
-            details_line = " Consultá las características y condiciones." if not benefits_text else ""
-
-            benefits_norm = "".join(
-                ch for ch in unicodedata.normalize("NFKD", benefits_text.casefold())
-                if not unicodedata.combining(ch)
-            )
-            benefit_angles = []
-            if "diagnostico" in benefits_norm:
-                benefit_angles.append(
-                    "Consultá por el diagnóstico del problema y qué incluye la atención."
-                )
-            if "instalacion" in benefits_norm:
-                benefit_angles.append(
-                    "Conocé qué incluye la instalación y las condiciones del servicio."
-                )
-            if "atencion personalizada" in benefits_norm:
-                benefit_angles.append(
-                    "Consultá cómo funciona la atención personalizada para tu caso."
-                )
-            benefit_angle = " ".join(benefit_angles)
-            if not benefit_angle:
-                benefit_angle = (
-                    f"Consultá qué incluye {offer_for_copy} y las condiciones "
-                    "del servicio antes de decidir."
-                )
-
-            proposals = [
-                (
-                    f"ANUNCIO 1 — ATRAER LA ATENCIÓN\n"
-                    f"TÍTULO: {title_1}\n"
-                    f"TEXTO: {body_1}{benefit_line}{promo_line}{details_line}\n"
-                    f"CTA: {ctas[0]}"
-                ),
-                (
-                    "ANUNCIO 2 \u2014 DESTACAR EL VALOR\n"
-                    f"T\u00cdTULO: Conoc\u00e9 mejor {offer_for_copy}\n"
-                    f"TEXTO: {benefit_angle}{promo_line}\n"
-                    f"CTA: {ctas[1]}"
-                ),
-                (
-                    "ANUNCIO 3 \u2014 GENERAR UNA CONVERSACI\u00d3N\n"
-                    "T\u00cdTULO: Busquemos la opci\u00f3n para vos\n"
-                    f"TEXTO: Contanos qu\u00e9 necesit\u00e1s y consult\u00e1 los detalles de {offer_for_copy} para evaluar si se ajusta a tu caso.{benefit_line}{promo_line}\n"
-                    f"CTA: {ctas[2]}"
-                ),
-            ]
 
             st.session_state["clone_res"] = proposals
             if reference_text:
