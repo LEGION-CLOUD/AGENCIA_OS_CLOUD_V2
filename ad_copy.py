@@ -34,14 +34,16 @@ def _benefits(text):
 
 def _sector(text):
     value = _plain(text)
+    # Prefer service intent when the offer is a repair/installation, even if
+    # it mentions a technology product such as a phone or air conditioner.
+    if any(word in value for word in ("instalacion", "reparacion", "diagnostico", "mantenimiento", "servicio")):
+        return "SERVICIO"
     if any(word in value for word in ("ropa", "moda", "jeans", "blazer", "vestido", "tops", "calzado", "coleccion")):
         return "MODA"
     if any(word in value for word in ("celular", "telefono", "notebook", "computadora", "hardware", "auricular", "televisor", "tecnologia")):
         return "TECH"
     if any(word in value for word in ("supermercado", "alimentos", "verduleria", "carniceria", "almacen")):
         return "COMERCIO"
-    if any(word in value for word in ("instalacion", "reparacion", "diagnostico", "mantenimiento", "servicio")):
-        return "SERVICIO"
     return "GENERAL"
 
 
@@ -64,6 +66,12 @@ def generate_ad_proposals(description, benefits="", promotion="", objective="Ven
     benefit_text = _benefits(benefits)
     promo_text = _clean_promo(promotion)
     sector = _sector(offer + " " + benefit_text)
+
+    normalized_offer = _plain(short_offer)
+    installation_prefix = "servicio de instalacion de "
+    if normalized_offer.startswith(installation_prefix):
+        item = short_offer[len(installation_prefix):].strip()
+        short_offer = f"la instalación de {item}"
 
     if objective == "Ventas":
         ctas = [
@@ -108,8 +116,12 @@ def generate_ad_proposals(description, benefits="", promotion="", objective="Ven
         title_3 = "¿Qué necesitás resolver?"
         body_3 = f"Contanos qué estás buscando y consultá por {short_offer}."
     elif sector == "SERVICIO":
-        title_1 = f"¿Necesitás {short_offer.lower()}?"
-        body_1 = f"Conocé la propuesta de {short_offer} y consultá cómo puede ayudarte."
+        if short_offer.lower().startswith("la instalación de "):
+            title_1 = f"¿Estás por instalar {short_offer[len('la instalación de '):]}?"
+            body_1 = f"Consultá por {short_offer} y conocé los detalles antes de decidir."
+        else:
+            title_1 = f"¿Necesitás {short_offer.lower()}?"
+            body_1 = f"Conocé la propuesta de {short_offer} y consultá cómo puede ayudarte."
         title_2 = "Información clara para elegir"
         body_2 = f"Consultá qué incluye {short_offer} y las condiciones del servicio."
         title_3 = "Contanos qué necesitás"
