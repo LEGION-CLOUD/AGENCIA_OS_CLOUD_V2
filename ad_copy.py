@@ -94,6 +94,10 @@ def generate_ad_proposals(description, benefits="", promotion="", objective="Ven
 
     promo_line = f" {promo_text}." if promo_text else ""
     benefit_line = f" {benefit_text}." if benefit_text else ""
+    # Fashion copy already expresses the value in its body; appending the full
+    # raw benefits field would repeat the same claims in every proposal.
+    if sector == "MODA":
+        benefit_line = ""
 
     if sector == "MODA":
         title_1 = "Tu próximo look empieza acá"
@@ -103,9 +107,7 @@ def generate_ad_proposals(description, benefits="", promotion="", objective="Ven
             + detail_sentence
         )
         title_2 = "Moda para combinar a tu manera"
-        body_2 = (
-            f"{details.capitalize()}. " if details else ""
-        ) + "Encontrá combinaciones para distintos estilos."
+        body_2 = "Prendas versátiles para combinar según tu estilo, desde opciones casuales hasta elegantes."
         title_3 = "¿Qué look estás buscando?"
         body_3 = "Contanos qué estilo te gusta y consultá por las prendas disponibles."
     elif sector == "TECH":
