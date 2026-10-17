@@ -5,6 +5,7 @@ import os, json, random, string, hashlib
 import uuid
 from urllib.parse import quote_plus
 import unicodedata
+import re
 from datetime import date, datetime, timedelta
 from meta_ads import (
     CAMPAIGN_COLUMNS,
@@ -745,6 +746,11 @@ BRAND_DB = {
     "musimundo": {"industria":"TECH","pos":"Tech joven + gaming + Musimundo a todo","fuerte":"Gaming, audio, joven","debil":"Stock inconsistente","ticket":90000},
 }
 
+def coincide_termino(texto, termino):
+    """Busca términos completos para evitar coincidencias dentro de otras palabras."""
+    return re.search(r"(?<!\\w)" + re.escape(termino) + r"(?!\\w)", texto) is not None
+
+
 def analisis_real_diferenciado(competidor):
     nombre = competidor.strip()
     if not nombre:
@@ -767,7 +773,7 @@ def analisis_real_diferenciado(competidor):
         ],
         "TECH": [
             "fravega", "frávega", "garbarino", "musimundo",
-            "samsung", "galaxy", "lg", "motorola", "xiaomi",
+            "samsung", "galaxy", "lg", "motorola", "xiaomi", "nvidia",
             "redmi", "huawei", "honor", "sony", "playstation",
             "xbox", "nintendo", "lenovo", "asus", "acer",
             "hp", "dell", "intel", "amd", "apple", "iphone",
@@ -778,7 +784,7 @@ def analisis_real_diferenciado(competidor):
 
     industria = "GENERAL"
     for sector, palabras in sectores.items():
-        if any(palabra in comp_lower for palabra in palabras):
+        if any(coincide_termino(comp_lower, palabra) for palabra in palabras):
             industria = sector
             break
 
