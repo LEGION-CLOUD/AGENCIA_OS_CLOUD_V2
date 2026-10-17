@@ -31,6 +31,8 @@ class AdCopyTests(unittest.TestCase):
         )
         self.assertEqual(len(proposals), 3)
         self.assertIn("instalación", "\n".join(proposals).lower())
+        self.assertIn("¿Estás por instalar aire acondicionado?", proposals[0])
+        self.assertNotIn("¿Necesitás servicio de instalacion", proposals[0])
         self.assertIn("Contanos qué necesitás", proposals[0])
 
     def test_generic_copy_does_not_put_full_description_in_title(self):
