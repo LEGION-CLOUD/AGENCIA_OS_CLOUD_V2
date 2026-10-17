@@ -750,7 +750,11 @@ def analisis_real_diferenciado(competidor):
     if not nombre:
         return "Escribi una marca para generar propuestas."
 
-    comp_lower = nombre.casefold()
+    comp_lower = "".join(
+        caracter
+        for caracter in unicodedata.normalize("NFKD", nombre.casefold())
+        if not unicodedata.combining(caracter)
+    )
 
     sectores = {
         "SUPERMERCADO": [
@@ -762,8 +766,13 @@ def analisis_real_diferenciado(competidor):
             "complot", "mango", "h&m", "47 street"
         ],
         "TECH": [
-            "fravega", "fravega", "garbarino", "musimundo",
-            "electro", "tecnologia", "tecnologia", "gaming"
+            "fravega", "frávega", "garbarino", "musimundo",
+            "samsung", "galaxy", "lg", "motorola", "xiaomi",
+            "redmi", "huawei", "honor", "sony", "playstation",
+            "xbox", "nintendo", "lenovo", "asus", "acer",
+            "hp", "dell", "intel", "amd", "apple", "iphone",
+            "ipad", "macbook", "electro", "tecnologia",
+            "tecnología", "gaming"
         ],
     }
 
@@ -818,11 +827,29 @@ def analisis_real_diferenciado(competidor):
         if hook not in seleccion_hooks:
             seleccion_hooks.append(hook)
 
-    formatos = [
-        "Video vertical breve mostrando el producto o servicio en uso.",
-        "Carrusel que explique tres beneficios comprobables.",
-        "Pieza estatica con una propuesta clara y una llamada a la accion.",
-    ]
+    formatos_por_sector = {
+        "SUPERMERCADO": [
+            "Video vertical mostrando como planificar una compra semanal.",
+            "Carrusel con una lista de compras organizada por categorias.",
+            "Pieza estatica con un consejo practico para comparar productos.",
+        ],
+        "MODA": [
+            "Video vertical mostrando tres combinaciones de una prenda.",
+            "Carrusel con detalles, calce y distintas formas de uso.",
+            "Pieza estatica destacando materiales y caracteristicas visibles.",
+        ],
+        "TECH": [
+            "Video vertical demostrando funciones reales de un dispositivo.",
+            "Carrusel explicando compatibilidad, prestaciones y garantia.",
+            "Pieza estatica con especificaciones comprobables del producto.",
+        ],
+        "GENERAL": [
+            "Video vertical mostrando el producto o servicio en uso.",
+            "Carrusel con beneficios comprobables y preguntas frecuentes.",
+            "Pieza estatica con una propuesta clara y llamada a la accion.",
+        ],
+    }
+    formatos = formatos_por_sector[industria]
 
     angulos = {
         "SUPERMERCADO": "Planificacion, utilidad y claridad al comprar.",
@@ -831,13 +858,37 @@ def analisis_real_diferenciado(competidor):
         "GENERAL": "Beneficio principal, demostracion y respuesta a dudas.",
     }
 
-    ideas = [
-        f"Guia practica relacionada con la categoria de {nombre}.",
-        f"Demostracion paso a paso de una solucion para el publico de {nombre}.",
-        f"Preguntas frecuentes que un cliente deberia resolver antes de comprar.",
-        f"Comparativa basada en datos comprobables, si hay fuentes disponibles.",
-        f"Testimonio real de un cliente, solo si se cuenta con su autorizacion.",
-    ]
+    ideas_por_sector = {
+        "SUPERMERCADO": [
+            "Guia para organizar una lista de compras segun las necesidades del hogar.",
+            "Demostracion de como comparar precio por unidad entre productos.",
+            "Planificacion de comidas semanales con una lista de ingredientes.",
+            "Preguntas frecuentes sobre conservacion y uso de productos.",
+            "Comparativa de productos basada en etiquetas y precios verificados.",
+        ],
+        "MODA": [
+            "Guia para combinar una prenda en distintas ocasiones.",
+            "Demostracion de detalles, calce y terminaciones visibles.",
+            "Consejos para elegir talles consultando las medidas publicadas.",
+            "Preguntas frecuentes sobre materiales y cuidados de las prendas.",
+            "Comparativa de prendas basada en caracteristicas verificables.",
+        ],
+        "TECH": [
+            "Guia para comprobar compatibilidad antes de comprar un dispositivo.",
+            "Demostracion de funciones disponibles en el producto.",
+            "Explicacion de garantia y especificaciones publicadas.",
+            "Preguntas frecuentes sobre configuracion y uso.",
+            "Comparativa basada en especificaciones verificadas de los equipos.",
+        ],
+        "GENERAL": [
+            f"Guia practica relacionada con la categoria de {nombre}.",
+            f"Demostracion paso a paso de una solucion para el publico de {nombre}.",
+            "Preguntas frecuentes que un cliente deberia resolver antes de comprar.",
+            "Comparativa basada en datos comprobables, si hay fuentes disponibles.",
+            "Testimonio real de un cliente, solo si se cuenta con su autorizacion.",
+        ],
+    }
+    ideas = ideas_por_sector[industria]
 
     ideas_seleccionadas = []
     for i in range(5):
