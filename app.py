@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import requests
 import os, json, random, string, hashlib
+import uuid
+from urllib.parse import quote_plus
+import unicodedata
 from datetime import date, datetime, timedelta
 from meta_ads import (
     CAMPAIGN_COLUMNS,
@@ -23,8 +26,511 @@ from google_ads import (
     load_oauth_config,
     normalize_customer_id,
 )
+from tiktok_ads import (
+    TikTokAdsError,
+    export_report_csv,
+    export_report_excel,
+    fetch_campaign_report,
+    normalize_advertiser_id,
+)
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
+st.markdown(
+    """
+    <style>
+    /* AGENCIA_OS_THEME_V1 */
+
+    .stApp {
+        background:
+            radial-gradient(ellipse at 15% 0%, rgba(124, 58, 237, 0.13), transparent 38%),
+            #0b0b12;
+        color: #f4f4f5;
+    }
+
+    .stApp [data-testid="stHeader"] {
+        background: rgba(11, 11, 18, 0.75);
+    }
+
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #11101b 0%, #0c0c13 100%);
+        border-right: 1px solid rgba(167, 139, 250, 0.18);
+    }
+
+    /* AGENCIA_OS_SIDEBAR_BRAND_V1 */
+    .agency-sidebar-brand {
+        padding: 8px 4px 22px 4px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid rgba(167, 139, 250, 0.20);
+    }
+    .agency-sidebar-mark {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        margin-bottom: 13px;
+        border: 1px solid rgba(196, 181, 253, 0.45);
+        border-radius: 13px;
+        background: linear-gradient(135deg, #8b5cf6, #5b21b6);
+        color: #ffffff;
+        font-size: 24px;
+        font-weight: 800;
+        box-shadow: 0 7px 22px rgba(124, 58, 237, 0.25);
+    }
+    .agency-sidebar-name {
+        color: #ffffff;
+        font-size: 1.12rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+    }
+    .agency-sidebar-caption {
+        margin-top: 4px;
+        color: #a78bfa;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+    }
+    .agency-sidebar-section {
+        margin: 0 0 8px 0;
+        color: #a78bfa;
+        font-size: 0.68rem;
+        font-weight: 750;
+        letter-spacing: 0.12em;
+    }
+
+    .stApp h1, .stApp h2, .stApp h3 {
+        color: #fafafa;
+        letter-spacing: -0.025em;
+    }
+
+    .stApp [data-testid="stCaptionContainer"] {
+        color: #a1a1aa;
+    }
+
+    div.stButton > button,
+    div[data-testid="stDownloadButton"] button {
+        border-radius: 12px;
+        font-weight: 600;
+        transition: all 0.18s ease;
+        border-color: rgba(167, 139, 250, 0.35);
+    }
+
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #7c3aed, #6d28d9);
+        color: #ffffff;
+        border: 1px solid #8b5cf6;
+    }
+
+    div.stButton > button:hover,
+    div[data-testid="stDownloadButton"] button:hover {
+        border-color: #a78bfa;
+        color: #ffffff;
+    }
+
+    button[data-baseweb="tab"] {
+        font-weight: 600;
+    }
+
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #c4b5fd;
+    }
+
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="select"] > div,
+    div[data-testid="stTextArea"] textarea {
+        border-radius: 10px;
+        border-color: #343044;
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: rgba(167, 139, 250, 0.20);
+        border-radius: 16px;
+    }
+
+    div[data-testid="stMetric"] {
+        background: rgba(24, 22, 36, 0.72);
+        border: 1px solid rgba(167, 139, 250, 0.18);
+        border-radius: 14px;
+        padding: 14px 16px;
+    }
+
+    /* AGENCIA_OS_METRICS_V1 */
+    div[data-testid="stMetric"] [data-testid="stMetricLabel"] {
+        color: #c4b5fd;
+        font-weight: 650;
+    }
+
+    div[data-testid="stMetric"] [data-testid="stMetricLabel"] p {
+        color: #c4b5fd;
+        font-size: 0.9rem;
+    }
+
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #ffffff;
+        font-size: clamp(1.5rem, 2vw, 2rem);
+        font-weight: 750;
+        letter-spacing: -0.03em;
+    }
+
+    div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        font-weight: 600;
+    }
+
+
+    hr {
+        border-color: rgba(167, 139, 250, 0.18);
+    }
+    .agency-hero {
+        padding: 28px 30px;
+        margin: 4px 0 26px 0;
+        border: 1px solid rgba(167, 139, 250, 0.28);
+        border-radius: 20px;
+        background: linear-gradient(115deg, rgba(124, 58, 237, 0.20), rgba(20, 18, 32, 0.96) 65%);
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.18);
+    }
+    .agency-hero .eyebrow {
+        color: #c4b5fd;
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        margin-bottom: 8px;
+    }
+    .agency-hero h1 {
+        color: #ffffff;
+        font-size: clamp(2rem, 4vw, 3rem);
+        font-weight: 800;
+        letter-spacing: -0.045em;
+        margin: 0;
+    }
+    .agency-hero p {
+        color: #c4c4d0;
+        font-size: 1rem;
+        margin: 8px 0 0 0;
+    }
+
+    :root {
+        --agency-canvas: #090c13;
+        --agency-surface: #10151f;
+        --agency-surface-raised: #151b27;
+        --agency-border: rgba(159, 151, 190, 0.18);
+        --agency-text: #f4f5f8;
+        --agency-muted: #9da5b4;
+        --agency-violet: #9b7bff;
+        --agency-violet-soft: rgba(139, 112, 246, 0.12);
+        --agency-green: #4fd1a1;
+        --agency-amber: #f0bd68;
+        --agency-red: #f17e8b;
+    }
+
+    .stApp {
+        background:
+            radial-gradient(ellipse at 8% 0%, rgba(118, 91, 209, 0.13), transparent 32%),
+            linear-gradient(180deg, #0b0e16 0%, var(--agency-canvas) 58%);
+        color: var(--agency-text);
+        font-family: "Aptos", "Segoe UI Variable", system-ui, sans-serif;
+    }
+
+    .stApp header[data-testid="stHeader"] {
+        background: rgba(9, 12, 19, 0.82);
+    }
+
+    .block-container {
+        max-width: 1540px;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+    }
+
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #111622 0%, #0c1018 100%);
+        border-right: 1px solid var(--agency-border);
+    }
+
+    section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+        gap: 0.75rem;
+    }
+
+    .agency-sidebar-brand {
+        border-color: var(--agency-border);
+        padding-bottom: 18px;
+    }
+
+    .agency-sidebar-mark {
+        border-radius: 10px;
+        background: linear-gradient(145deg, #a18aff, #6e52d8);
+        box-shadow: 0 8px 22px rgba(91, 70, 177, 0.24);
+    }
+
+    .agency-sidebar-caption,
+    .agency-sidebar-section {
+        color: #b6a5ff;
+    }
+
+    .agency-sidebar-section {
+        margin-top: 10px;
+        font-size: 0.66rem;
+        letter-spacing: 0.14em;
+    }
+
+    .agency-sidebar-nav {
+        display: grid;
+        gap: 4px;
+        margin: 8px 0 12px;
+    }
+
+    .agency-sidebar-nav a {
+        display: block;
+        padding: 9px 10px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        color: #c5cad4;
+        font-size: 0.86rem;
+        font-weight: 580;
+        text-decoration: none;
+        transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .agency-sidebar-nav a:hover {
+        border-color: var(--agency-border);
+        background: rgba(155, 123, 255, 0.1);
+        color: #ffffff;
+    }
+
+    .agency-hero {
+        margin-bottom: 22px;
+        padding: 24px 28px;
+        border-color: var(--agency-border);
+        border-radius: 14px;
+        background: linear-gradient(112deg, rgba(105, 82, 177, 0.19), rgba(16, 21, 31, 0.96) 68%);
+        box-shadow: 0 14px 35px rgba(0, 0, 0, 0.22);
+    }
+
+    .agency-hero h1 {
+        font-size: 2.45rem;
+        letter-spacing: 0;
+    }
+
+    .agency-hero .eyebrow {
+        color: #c7baff;
+        letter-spacing: 0.12em;
+    }
+
+    .agency-section-heading {
+        margin: 22px 0 14px;
+    }
+
+    .agency-section-heading .agency-kicker {
+        color: #b6a5ff;
+        font-size: 0.68rem;
+        font-weight: 750;
+        letter-spacing: 0.13em;
+    }
+
+    .agency-section-heading h2 {
+        margin: 4px 0 0;
+        color: var(--agency-text);
+        font-size: 1.45rem;
+        font-weight: 720;
+        letter-spacing: 0;
+    }
+
+    .agency-section-heading p {
+        margin: 5px 0 0;
+        color: var(--agency-muted);
+        font-size: 0.9rem;
+    }
+
+    .agency-platform-strip {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0 0 24px;
+    }
+
+    .agency-platform-card {
+        min-width: 0;
+        padding: 15px 16px;
+        border: 1px solid var(--agency-border);
+        border-radius: 10px;
+        background: linear-gradient(145deg, rgba(21, 27, 39, 0.94), rgba(14, 18, 27, 0.98));
+    }
+
+    .agency-platform-name {
+        color: var(--agency-muted);
+        font-size: 0.68rem;
+        font-weight: 750;
+        letter-spacing: 0.1em;
+    }
+
+    .agency-platform-state {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 9px;
+        color: var(--agency-text);
+        font-size: 0.9rem;
+        font-weight: 650;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+
+    .agency-platform-state::before {
+        width: 7px;
+        height: 7px;
+        flex: 0 0 7px;
+        border-radius: 50%;
+        background: var(--agency-muted);
+        content: "";
+    }
+
+    .agency-platform-state.is-ready::before,
+    .agency-platform-state.is-connected::before {
+        background: var(--agency-green);
+        box-shadow: 0 0 10px rgba(79, 209, 161, 0.36);
+    }
+
+    .agency-platform-state.is-empty::before,
+    .agency-platform-state.is-pending::before,
+    .agency-platform-state.is-unavailable::before {
+        background: var(--agency-amber);
+    }
+
+    .agency-platform-state.is-error::before {
+        background: var(--agency-red);
+    }
+
+    div[data-testid="stMetric"] {
+        min-height: 116px;
+        padding: 18px 20px;
+        border-color: var(--agency-border);
+        border-radius: 11px;
+        background: linear-gradient(145deg, rgba(22, 28, 41, 0.96), rgba(14, 18, 27, 0.98));
+        box-shadow: 0 9px 24px rgba(0, 0, 0, 0.14);
+    }
+
+    div[data-testid="stMetric"] [data-testid="stMetricLabel"],
+    div[data-testid="stMetric"] [data-testid="stMetricLabel"] p {
+        color: #b7a9fa;
+        font-size: 0.82rem;
+        font-weight: 650;
+    }
+
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: var(--agency-text);
+        font-size: 1.8rem;
+        font-weight: 740;
+        letter-spacing: 0;
+    }
+
+    div[data-testid="stDataFrame"] {
+        overflow: hidden;
+        border: 1px solid var(--agency-border);
+        border-radius: 10px;
+        background: var(--agency-surface);
+    }
+
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: var(--agency-border);
+        border-radius: 11px;
+        background: rgba(16, 21, 31, 0.58);
+    }
+
+    div.stButton > button,
+    div[data-testid="stDownloadButton"] button,
+    div[data-testid="stLinkButton"] a {
+        min-height: 42px;
+        border: 1px solid rgba(155, 123, 255, 0.32);
+        border-radius: 8px;
+        background: #171927;
+        color: #f4f2ff;
+        font-weight: 650;
+        transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+    }
+
+    div.stButton > button[kind="primary"] {
+        border-color: #8f72ec;
+        background: linear-gradient(135deg, #7d61d8, #6248b8);
+        color: #ffffff;
+    }
+
+    div.stButton > button:hover,
+    div[data-testid="stDownloadButton"] button:hover,
+    div[data-testid="stLinkButton"] a:hover {
+        border-color: #b6a5ff;
+        background: #211e32;
+        color: #ffffff;
+        transform: translateY(-1px);
+    }
+
+    button[data-baseweb="tab"] {
+        color: #a8afbc;
+        font-weight: 650;
+    }
+
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #c8bbff;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        border-bottom: 1px solid var(--agency-border);
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        min-height: 44px;
+        padding: 0 15px;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .stTabs [data-baseweb="tab-panel"] {
+        padding-top: 1.2rem;
+    }
+
+    div[data-testid="stAlert"] {
+        border-radius: 9px;
+    }
+
+    div[data-testid="stCodeBlock"] {
+        border: 1px solid var(--agency-border);
+        border-radius: 9px;
+        background: #0d121b;
+    }
+
+    div[data-testid="stTextArea"] textarea,
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="select"] > div {
+        border-color: #353b4a;
+        border-radius: 8px;
+        background: #111722;
+    }
+
+    @media (max-width: 900px) {
+        .agency-platform-strip {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .block-container {
+            padding-top: 1.4rem;
+        }
+    }
+
+    @media (max-width: 600px) {
+        .agency-platform-strip {
+            grid-template-columns: minmax(0, 1fr);
+        }
+        .agency-hero {
+            padding: 20px;
+        }
+        .agency-hero h1 {
+            font-size: 2rem;
+        }
+        div[data-testid="stMetric"] {
+            min-height: 100px;
+            padding: 14px;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.session_state.pop("google_oauth_state", None)
 
 if capture_oauth_callback(st.query_params, st.session_state):
@@ -175,6 +681,51 @@ def validate_license(key, licenses):
     if not lic.get("active",True): return False,"Desactivada"
     return True,lic
 
+
+LICENSE_SCOPED_SESSION_KEYS = (
+    "meta",
+    "meta_act",
+    "df_meta",
+    "meta_period",
+    "meta_query",
+    "meta_result_status",
+    "google_oauth_credentials",
+    "google_oauth_license_fingerprint",
+    "google_oauth_pending_callback",
+    "google_oauth_notice",
+    "google_license_fingerprint",
+    "google_customer_id",
+    "google_login_customer_id",
+    "google_license_revalidation",
+    "df_google",
+    "google_report",
+    "tiktok_access_token",
+    "tiktok_advertiser_id",
+    "df_tiktok",
+    "tiktok_report",
+    "df_all",
+    "gasto_all",
+    "roas_all",
+)
+
+
+def clear_license_scoped_session(session_state):
+    for key in LICENSE_SCOPED_SESSION_KEYS:
+        session_state.pop(key, None)
+
+
+def start_license_session(session_state):
+    clear_license_scoped_session(session_state)
+    session_state["_license_scope"] = uuid.uuid4().hex
+
+
+def invalidate_license_session(session_state):
+    clear_license_scoped_session(session_state)
+    session_state["license_valid"] = False
+    session_state.pop("license_data", None)
+    session_state.pop("_license_scope", None)
+
+
 def hash_pick(text, options):
     h=int(hashlib.md5(text.lower().encode()).hexdigest(),16)
     return options[h % len(options)]
@@ -195,126 +746,134 @@ BRAND_DB = {
 }
 
 def analisis_real_diferenciado(competidor):
-    comp_lower = competidor.lower().strip()
-    data = None
-    for k,v in BRAND_DB.items():
-        if k in comp_lower:
-            data = v
+    nombre = competidor.strip()
+    if not nombre:
+        return "Escribi una marca para generar propuestas."
+
+    comp_lower = nombre.casefold()
+
+    sectores = {
+        "SUPERMERCADO": [
+            "coto", "dia", "carrefour", "vea", "disco", "jumbo",
+            "walmart", "supermercado", "supermercados", "mercado"
+        ],
+        "MODA": [
+            "levis", "levi's", "zara", "ropa", "moda", "jean",
+            "complot", "mango", "h&m", "47 street"
+        ],
+        "TECH": [
+            "fravega", "fravega", "garbarino", "musimundo",
+            "electro", "tecnologia", "tecnologia", "gaming"
+        ],
+    }
+
+    industria = "GENERAL"
+    for sector, palabras in sectores.items():
+        if any(palabra in comp_lower for palabra in palabras):
+            industria = sector
             break
-    if not data:
-        if any(x in comp_lower for x in ["coto","dia","carrefour","vea","disco","jumbo","walmart","super","mercado"]):
-            data = {"industria":"SUPERMERCADO","pos":"Ahorro y cercanía","fuerte":"Precio","debil":"Digital flojo","ticket":30000}
-        elif any(x in comp_lower for x in ["jean","zara","levis","ropa","moda","47","complot","mango","h&m"]):
-            data = {"industria":"MODA","pos":"Tendencia y horma","fuerte":"Diseño","debil":"Precio/calidad","ticket":50000}
-        elif any(x in comp_lower for x in ["fravega","garbarino","musimundo","electro","tech"]):
-            data = {"industria":"TECH","pos":"Cuotas y variedad","fuerte":"Financiación","debil":"Servicio","ticket":120000}
-        else:
-            data = {"industria":"GENERAL","pos":"Beneficio principal","fuerte":"Marca conocida","debil":"Poco diferencial","ticket":25000}
 
-    industria = data["industria"]
-    
-    hooks_super = [
-        f"\"Llevá 2x1 solo HOY en {competidor} - Ahorrá $15.000\"",
-        f"\"Asado $6.999/kg en {competidor} - Hasta agotar stock\"",
-        f"\"Con {competidor} Comunidad +30% OFF + 12 cuotas\"",
-        f"\"Precios que no se ven: {competidor} $2.999 el kilo de pan\"",
-        f"\"{competidor} te devuelve $10.000 si gastás $30.000\"",
-        f"\"Canasta familiar $45.000 en {competidor} vs $68.000 afuera\"",
-        f"\"{competidor} 3x2 en lácteos - Solo esta semana\"",
-        f"\"Ofertas locas {competidor}: Shampoo $1.499\"",
+    hooks_por_sector = {
+        "SUPERMERCADO": [
+            "Arma tu lista de compras y prioriza lo que realmente necesitas.",
+            "Ideas para organizar las compras de la semana sin complicarte.",
+            "Compara el precio por unidad antes de elegir.",
+            "Tu proxima compra empieza con una lista inteligente.",
+            "Descubri opciones para planificar mejor las compras del hogar.",
+        ],
+        "MODA": [
+            "Tres formas de combinar una prenda para distintos momentos.",
+            "Enfocate en el calce, los detalles y como se siente la prenda.",
+            "Arma un look versatil con prendas que ya tenes.",
+            "Mira los detalles de la prenda antes de elegir tu proximo look.",
+            "Encuentra un estilo que se adapte a vos.",
+        ],
+        "TECH": [
+            "Que conviene revisar antes de elegir tu proximo dispositivo.",
+            "Compara funciones y elegi segun lo que realmente necesitas.",
+            "Mira el producto en uso y conoce sus funciones principales.",
+            "Una guia simple para comparar opciones de tecnologia.",
+            "Antes de comprar, revisa compatibilidad, garantia y prestaciones.",
+        ],
+        "GENERAL": [
+            "Conoce la propuesta y como puede ayudarte.",
+            "Tres preguntas que conviene resolver antes de elegir.",
+            "Mira como funciona y descubre si se adapta a tus necesidades.",
+            "Conoce los detalles importantes antes de tomar una decision.",
+            "Una forma simple de descubrir una nueva alternativa.",
+        ],
+    }
+
+    hooks = hooks_por_sector[industria]
+    h1 = hash_pick(nombre + "|hook1", hooks)
+    h2 = hash_pick(nombre + "|hook2", hooks)
+    h3 = hash_pick(nombre + "|hook3", hooks)
+    seleccion_hooks = []
+    for hook in (h1, h2, h3):
+        if hook not in seleccion_hooks:
+            seleccion_hooks.append(hook)
+    for hook in hooks:
+        if len(seleccion_hooks) >= 3:
+            break
+        if hook not in seleccion_hooks:
+            seleccion_hooks.append(hook)
+
+    formatos = [
+        "Video vertical breve mostrando el producto o servicio en uso.",
+        "Carrusel que explique tres beneficios comprobables.",
+        "Pieza estatica con una propuesta clara y una llamada a la accion.",
     ]
-    hooks_moda = [
-        f"\"El jean {competidor} que no se transparenta ni se baja\"",
-        f"\"Probé 5 jeans y solo {competidor} me levantó la cola\"",
-        f"\"{competidor} 501 original - Dura 10 años\"",
-        f"\"Antes $89.999 ahora $44.999 {competidor} - Últimas 20\"",
-        f"\"{competidor} talle real argentino, no importado que aprieta\"",
-        f"\"{competidor} no se deforma después de 20 lavados - Test\"",
-        f"\"Por qué todas dejan Zara por {competidor}\"",
-        f"\"{competidor} levanta 3cm sin tacos - Truco horma\"",
+
+    angulos = {
+        "SUPERMERCADO": "Planificacion, utilidad y claridad al comprar.",
+        "MODA": "Estilo, combinaciones y detalles visibles del producto.",
+        "TECH": "Funciones, comparacion de prestaciones y uso real.",
+        "GENERAL": "Beneficio principal, demostracion y respuesta a dudas.",
+    }
+
+    ideas = [
+        f"Guia practica relacionada con la categoria de {nombre}.",
+        f"Demostracion paso a paso de una solucion para el publico de {nombre}.",
+        f"Preguntas frecuentes que un cliente deberia resolver antes de comprar.",
+        f"Comparativa basada en datos comprobables, si hay fuentes disponibles.",
+        f"Testimonio real de un cliente, solo si se cuenta con su autorizacion.",
     ]
-    hooks_tech = [
-        f"\"{competidor} 50% OFF + 18 cuotas sin interés - Hoy\"",
-        f"\"Llevá 2 electro en {competidor} pagá 1 - Liquidación\"",
-        f"\"{competidor} precio más bajo del país o te devolvemos x2\"",
-        f"\"{competidor} retira en 2hs gratis + garantía 2 años\"",
-    ]
 
-    if industria == "SUPERMERCADO":
-        pool = hooks_super
-        h1 = hash_pick(competidor+"1", pool)
-        h2 = hash_pick(competidor+"2", pool)
-        while h2==h1: h2 = hash_pick(competidor+"2x", pool)
-        h3 = hash_pick(competidor+"3", pool)
-        while h3==h1 or h3==h2: h3 = hash_pick(competidor+"3x", pool)
-        formato1 = hash_pick(competidor+"f1", ["60% Carrusel precio gigante rojo","70% Reels changuito lleno vs ticket","50% Video oferta con reloj urgencia","80% Static precio + %OFF"])
-        formato2 = hash_pick(competidor+"f2", ["30% Reels vertical","25% Carrusel comparativa","40% UGC cliente mostrando ticket","15% Influencer comprando"])
-        angulo = f"{data['pos']}. Fuerte en {data['fuerte']}, débil en {data['debil']}. Ticket promedio ${data['ticket']:,}"
-        como_superar = hash_pick(competidor+"sup", [
-            f"Comparativa ticket real: Fui a {competidor} y acá con $20k - mirá donde rinde más",
-            f"Garantía precio: Si encontrás más barato en {competidor}, te devolvemos diferencia x2 + envío gratis",
-            f"Video reacción a su oferta con calculadora mostrando letra chica",
-            f"Atacar debilidad: {competidor} es {data['debil']} - nosotros somos lo opuesto",
-        ])
-        ideas = [f"Canasta $20k en {competidor} vs nuestra - Desafío real", f"5 productos que {competidor} cobra caro", f"Qué compras con $10k en {competidor} vs acá", f"Letra chica de {competidor}", f"{competidor} {data['debil']} - nosotros lo resolvimos"]
-        idea1 = hash_pick(competidor+"i1", ideas)
-        idea2 = hash_pick(competidor+"i2", ideas)
-        while idea2==idea1: idea2 = hash_pick(competidor+"i2b", ideas)
-        idea3 = hash_pick(competidor+"i3", ideas)
-        while idea3==idea1 or idea3==idea2: idea3 = hash_pick(competidor+"i3b", ideas)
+    ideas_seleccionadas = []
+    for i in range(5):
+        idea = hash_pick(nombre + "|idea|" + str(i), ideas)
+        if idea not in ideas_seleccionadas:
+            ideas_seleccionadas.append(idea)
+    for idea in ideas:
+        if len(ideas_seleccionadas) >= 3:
+            break
+        if idea not in ideas_seleccionadas:
+            ideas_seleccionadas.append(idea)
 
-    elif industria == "MODA":
-        pool = hooks_moda
-        h1 = hash_pick(competidor+"1", pool)
-        h2 = hash_pick(competidor+"2", pool)
-        while h2==h1: h2 = hash_pick(competidor+"2x", pool)
-        h3 = hash_pick(competidor+"3", pool)
-        while h3==h1 or h3==h2: h3 = hash_pick(competidor+"3x", pool)
-        formato1 = hash_pick(competidor+"f1", ["70% UGC Reels chica probándose 12-18seg","60% Video probador espejo","80% Try-on haul"])
-        formato2 = hash_pick(competidor+"f2", ["20% Carrusel detalles tela","30% Antes/después","15% Test transparencia"])
-        angulo = f"{data['pos']}. Fuerte en {data['fuerte']}, débil en {data['debil']}. Ticket ${data['ticket']:,}"
-        como_superar = f"Atacar {data['debil']}: {competidor} falla en {data['debil']} - mostrar que lo resolvimos"
-        idea1 = hash_pick(competidor+"i1", [f"Test sentadilla {competidor} vs nosotros", f"Por qué dejé {competidor}", f"{competidor} talle único vs nuestro talle real"])
-        idea2 = hash_pick(competidor+"i2", [f"{competidor} se transparenta? Test luz", f"Lo que {competidor} no te dice", f"{competidor} $89k vs nuestro $45k"])
-        idea3 = hash_pick(competidor+"i3", [f"Reacción a ad de {competidor}", f"Probé {competidor} 30 días", f"Micro-influencer talle 44 probando {competidor}"])
-    else:
-        h1 = hash_pick(competidor+"1", hooks_tech+hooks_moda)
-        h2 = hash_pick(competidor+"2", hooks_tech+hooks_moda)
-        h3 = hash_pick(competidor+"3", hooks_tech+hooks_moda)
-        formato1 = "60% Video oferta + precio"
-        formato2 = "30% Carrusel beneficios"
-        angulo = f"{data['pos']} - Ticket ${data['ticket']:,}"
-        como_superar = f"Comparativa directa vs {competidor} atacando {data['debil']}"
-        idea1, idea2, idea3 = f"Vs {competidor} test", f"Errores de {competidor}", f"Reacción a {competidor}"
+    return (
+        f"ANALISIS ORIENTATIVO: {nombre}\n"
+        f"Rubro estimado: {industria}\n\n"
+        "ALCANCE Y LIMITACIONES\n"
+        "- No se consultaron ni verificaron anuncios actuales de esta marca.\n"
+        "- No hay precios, descuentos, tickets, inversiones ni resultados verificados.\n"
+        "- El rubro es una estimacion basada en palabras del nombre ingresado.\n"
+        "- Las siguientes ideas son propuestas creativas, no anuncios observados.\n\n"
+        "1. TRES PROPUESTAS DE HOOK\n"
+        + "\n".join(f"- {hook}" for hook in seleccion_hooks[:3])
+        + "\n\n2. FORMATOS CREATIVOS SUGERIDOS\n"
+        + "\n".join(f"- {formato}" for formato in formatos)
+        + f"\n\n3. ANGULO CREATIVO SUGERIDO\n{angulos[industria]}\n"
+        "\n4. COMO DIFERENCIAR TU OFERTA\n"
+        "- Destaca beneficios propios que puedas demostrar.\n"
+        "- Compara precios o prestaciones solo con datos actuales verificables.\n"
+        "- No atribuyas debilidades, promociones ni afirmaciones no comprobadas al competidor.\n"
+        "\n5. TRES IDEAS DE CONTENIDO ORIGINAL\n"
+        + "\n".join(
+            f"IDEA {i + 1}: {idea}"
+            for i, idea in enumerate(ideas_seleccionadas[:3])
+        )
+    )
 
-    return f"""ANÁLISIS ORIENTATIVO - {competidor.upper()} - {industria}
-
-FICHA ORIENTATIVA (NO VERIFICADA)
-- Posicionamiento: {data['pos']}
-- Fuerte: {data['fuerte']}
-- Débil: {data['debil']}
-- Ticket orientativo: ${data['ticket']:,}
-
-1. HIPÓTESIS DE HOOKS (NO VERIFICADAS EN ANUNCIOS ACTUALES)
-   {h1}
-   {h2}
-   {h3}
-
-2. FORMATOS SUGERIDOS (NO OBSERVADOS)
-   {formato1}
-   {formato2}
-
-3. ÁNGULO SUGERIDO
-   {angulo}
-
-4. COMO SUPERARLOS
-   {como_superar}
-
-5. 3 IDEAS ÚNICAS PARA ESTA MARCA
-   IDEA 1: {idea1}
-   IDEA 2: {idea2}
-   IDEA 3: {idea3}
-"""
 
 def fetch_meta_free(
     token,
@@ -344,9 +903,6 @@ def fetch_meta_free(
 def fetch_google_free():
     return pd.DataFrame(columns=CAMPAIGN_COLUMNS)
 
-
-def fetch_tiktok_free():
-    return pd.DataFrame(columns=CAMPAIGN_COLUMNS)
 
 if "license_valid" not in st.session_state: st.session_state["license_valid"]=False
 is_admin="admin" in st.query_params
@@ -440,6 +996,7 @@ except GoogleAdsError as exc:
     google_config_error = str(exc)
 
 if not st.session_state["license_valid"]:
+    invalidate_license_session(st.session_state)
     st.markdown("<h1 style='text-align:center; margin-top:80px; font-weight:800;'>AGENCIA OS</h1>",unsafe_allow_html=True)
     st.markdown("<p style='text-align:center; color:#71717a;'>Acceso privado</p>",unsafe_allow_html=True)
     _,mid,_=st.columns([1,2,1])
@@ -449,6 +1006,7 @@ if not st.session_state["license_valid"]:
             licenses=load_licenses()
             ok,info=validate_license(lic_input,licenses)
             if ok:
+                start_license_session(st.session_state)
                 if google_config is not None:
                     current_license_fingerprint = fingerprint_license(
                         lic_input,
@@ -508,12 +1066,43 @@ if pending_oauth_callback is not None and google_license_fingerprint:
             google_oauth_notice = "Google Ads quedó conectado para esta sesión."
 
 lic_data=st.session_state.get("license_data",{})
+if "_license_scope" not in st.session_state:
+    start_license_session(st.session_state)
 cliente_default=lic_data.get("client","CLIENTE")
 meta_download_requested = False
 google_download_requested = False
+tiktok_download_requested = False
 with st.sidebar:
+    st.markdown(
+        """
+        <div class="agency-sidebar-brand">
+            <div class="agency-sidebar-mark">A</div>
+            <div class="agency-sidebar-name">AGENCIA OS</div>
+            <div class="agency-sidebar-caption">ADVERTISING INTELLIGENCE</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <nav class="agency-sidebar-nav" aria-label="Navegación principal">
+            <a href="#dashboard">Dashboard</a>
+            <a href="#platforms">Plataformas</a>
+            <a href="#tools">Herramientas</a>
+        </nav>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="agency-sidebar-section">CUENTA ACTIVA</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown(f"### {cliente_default}")
+    if st.button("Cambiar licencia", use_container_width=True):
+        invalidate_license_session(st.session_state)
+        st.rerun()
     cliente=st.text_input("Cliente",value=cliente_default)
+    st.markdown('<div class="agency-sidebar-section">PERÍODO DEL INFORME</div>', unsafe_allow_html=True)
     preset=st.selectbox(
         "Rango",
         ["last_7d","last_14d","last_30d","custom"],
@@ -552,13 +1141,14 @@ with st.sidebar:
             f"{selected_period[1]} (histórico)."
         )
     st.divider()
-    st.markdown("**META**")
+    st.markdown('<div class="agency-sidebar-section">PLATAFORMAS PUBLICITARIAS</div>', unsafe_allow_html=True)
+    st.markdown("**META ADS**")
     meta_token=st.text_input("Token Meta",type="password",key="meta")
     meta_act=st.text_input("Ad Account",key="meta_act")
     st.caption("La conexión actual requiere un token manual; no usa OAuth.")
     if st.button("Bajar META",use_container_width=True):
         meta_download_requested = True
-    st.markdown("**GOOGLE**")
+    st.markdown("**GOOGLE ADS**")
     if google_oauth_notice:
         st.info(google_oauth_notice)
     if google_config_error:
@@ -638,11 +1228,20 @@ with st.sidebar:
                     st.session_state.pop("df_google", None)
                     st.session_state.pop("google_report", None)
                     st.rerun()
-    st.markdown("**TIKTOK**")
+    st.markdown("**TIKTOK ADS**")
+    tiktok_access_token = st.text_input(
+        "Token de acceso TikTok",
+        type="password",
+        key="tiktok_access_token",
+    )
+    tiktok_advertiser_input = st.text_input(
+        "ID de anunciante TikTok",
+        key="tiktok_advertiser_id",
+    )
     if st.button("Bajar TIKTOK",use_container_width=True):
-        st.session_state.pop("df_tiktok",None)
-        st.warning("La integración de TikTok Ads no está configurada; no se descargaron datos.")
+        tiktok_download_requested = True
     st.divider()
+    st.markdown('<div class="agency-sidebar-section">ACCIONES</div>', unsafe_allow_html=True)
     if st.button("UNIFICAR TODO",type="primary",use_container_width=True):
         frames=[
             st.session_state[key]
@@ -671,6 +1270,116 @@ with st.sidebar:
             st.session_state["roas_all"]=roas_all
             st.success("Unificado"); st.rerun()
         else: st.warning("Bajá un canal que haya devuelto datos reales.")
+
+st.markdown(
+    """
+    <section class="agency-hero">
+        <div class="eyebrow">PLATAFORMAS | ANALITICA | ESTRATEGIA</div>
+        <h1>AGENCIA OS</h1>
+        <p>Tu centro de control publicitario</p>
+    </section>
+    """,
+    unsafe_allow_html=True,
+)
+if tiktok_download_requested:
+    for key in (
+        "df_all",
+        "gasto_all",
+        "roas_all",
+        "df_tiktok",
+        "tiktok_report",
+    ):
+        st.session_state.pop(key, None)
+    selected_tiktok_period = None
+    normalized_tiktok_advertiser = None
+    try:
+        selected_tiktok_period = meta_date_range(
+            preset,
+            custom_start=custom_start,
+            custom_end=custom_end,
+        )
+        normalized_tiktok_advertiser = normalize_advertiser_id(
+            tiktok_advertiser_input
+        )
+        with st.spinner("Consultando TikTok Ads..."):
+            df_tiktok = fetch_campaign_report(
+                tiktok_access_token,
+                normalized_tiktok_advertiser,
+                selected_tiktok_period,
+            )
+    except (TikTokAdsError, ValueError) as exc:
+        st.session_state["tiktok_report"] = {
+            "advertiser_id": normalized_tiktok_advertiser,
+            "period": selected_tiktok_period,
+            "status": "error",
+            "message": str(exc),
+        }
+    else:
+        st.session_state["df_tiktok"] = df_tiktok
+        st.session_state["tiktok_report"] = {
+            "advertiser_id": normalized_tiktok_advertiser,
+            "period": selected_tiktok_period,
+            "status": "empty" if df_tiktok.empty else "data",
+        }
+
+if "tiktok_report" in st.session_state:
+    tiktok_report = st.session_state["tiktok_report"]
+    st.markdown("### TIKTOK ADS — resultados históricos")
+    if tiktok_report["period"]:
+        since, until = tiktok_report["period"]
+        account_context = (
+            f"Anunciante consultado: {tiktok_report['advertiser_id']} · "
+            if tiktok_report["advertiser_id"]
+            else ""
+        )
+        st.caption(
+            f"{account_context}Período: {since} a {until}. "
+            "No son datos en tiempo real."
+        )
+    if tiktok_report["status"] == "error":
+        st.warning(
+            "No se completó la consulta de TikTok Ads: "
+            f"{tiktok_report['message']}"
+        )
+    elif tiktok_report["status"] == "empty":
+        st.info("TikTok Ads respondió correctamente sin campañas en el período consultado.")
+        df_tiktok = st.session_state["df_tiktok"]
+        st.download_button(
+            "Descargar informe TIKTOK ADS (CSV)",
+            data=export_report_csv(df_tiktok),
+            file_name=f"tiktok_ads_campanas_{since}_{until}.csv",
+            mime="text/csv",
+            key="download_tiktok_csv",
+            use_container_width=True,
+        )
+        st.download_button(
+            "Descargar informe TIKTOK ADS (Excel)",
+            data=export_report_excel(df_tiktok),
+            file_name=f"tiktok_ads_campanas_{since}_{until}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_tiktok_excel",
+            use_container_width=True,
+        )
+    elif tiktok_report["status"] == "data":
+        df_tiktok = st.session_state["df_tiktok"]
+        st.success(f"TikTok Ads devolvió {len(df_tiktok)} filas de métricas.")
+        st.dataframe(df_tiktok, use_container_width=True)
+        st.download_button(
+            "Descargar informe TIKTOK ADS (CSV)",
+            data=export_report_csv(df_tiktok),
+            file_name=f"tiktok_ads_campanas_{since}_{until}.csv",
+            mime="text/csv",
+            key="download_tiktok_csv",
+            use_container_width=True,
+        )
+        st.download_button(
+            "Descargar informe TIKTOK ADS (Excel)",
+            data=export_report_excel(df_tiktok),
+            file_name=f"tiktok_ads_campanas_{since}_{until}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_tiktok_excel",
+            use_container_width=True,
+        )
 
 if google_download_requested:
     for key in ("df_all", "gasto_all", "roas_all", "df_google", "google_report"):
@@ -817,9 +1526,65 @@ if "meta_query" in st.session_state:
             use_container_width=True,
         )
 
+meta_report_status = st.session_state.get("meta_result_status", "pending")
+meta_status_labels = {
+    "data": ("Informe disponible", "is-ready"),
+    "empty": ("Sin datos para el período", "is-empty"),
+    "error": ("Error en el último intento", "is-error"),
+}
+meta_status = meta_status_labels.get(meta_report_status, ("Pendiente", "is-pending"))
+
+google_report_status = st.session_state.get("google_report", {}).get("status")
+google_is_connected = (
+    bool(st.session_state.get("google_oauth_credentials"))
+    and st.session_state.get("google_oauth_license_fingerprint")
+    == google_license_fingerprint
+)
+if google_report_status == "error":
+    google_status = ("Error en el último intento", "is-error")
+elif google_report_status == "empty":
+    google_status = ("Sin datos para el período", "is-empty")
+elif google_report_status == "data":
+    google_status = ("Informe disponible", "is-ready")
+elif google_is_connected:
+    google_status = ("Conectado en esta sesión", "is-connected")
+elif google_config_error:
+    google_status = ("Configuración pendiente", "is-pending")
+else:
+    google_status = ("Pendiente", "is-pending")
+
+tiktok_report_status = st.session_state.get("tiktok_report", {}).get("status")
+tiktok_status = {
+    "data": ("Informe disponible", "is-ready"),
+    "empty": ("Sin datos para el período", "is-empty"),
+    "error": ("Error en el último intento", "is-error"),
+}.get(tiktok_report_status, ("Pendiente", "is-pending"))
+
+platform_statuses = (
+    ("META ADS", meta_status),
+    ("INSTAGRAM", ("Sin integración separada", "is-unavailable")),
+    ("GOOGLE ADS", google_status),
+    ("TIKTOK ADS", tiktok_status),
+)
+st.markdown('<div class="agency-section-heading" id="platforms"><div class="agency-kicker">PLATAFORMAS</div><h2>Estado de conexiones</h2><p>Estados basados en la sesión y en los últimos informes disponibles.</p></div>', unsafe_allow_html=True)
+st.markdown(
+    '<div class="agency-platform-strip">'
+    + "".join(
+        '<div class="agency-platform-card">'
+        f'<div class="agency-platform-name">{name}</div>'
+        f'<div class="agency-platform-state {state_class}">{label}</div>'
+        "</div>"
+        for name, (label, state_class) in platform_statuses
+    )
+    + "</div>",
+    unsafe_allow_html=True,
+)
+
+st.markdown('<div class="agency-section-heading" id="dashboard"><div class="agency-kicker">RESUMEN</div><h2>Dashboard ejecutivo</h2><p>Resultados agregados de los informes cargados para el período seleccionado.</p></div>', unsafe_allow_html=True)
+k1, k2, k3 = st.columns(3)
+
 if "df_all" in st.session_state:
-    df_all=st.session_state["df_all"]
-    k1,k2,k3=st.columns(3)
+    df_all = st.session_state["df_all"]
     gasto_display = (
         f"${st.session_state['gasto_all']:,.0f}"
         if st.session_state["gasto_all"] is not None
@@ -830,32 +1595,385 @@ if "df_all" in st.session_state:
         if st.session_state["roas_all"] is not None
         else "No disponible"
     )
-    k1.metric("Gasto",gasto_display); k2.metric("ROAS",roas_display); k3.metric("Campañas",len(df_all))
-    st.dataframe(df_all,use_container_width=True)
+    campanas_display = str(len(df_all))
+else:
+    df_all = None
+    gasto_display = "\u2014"
+    roas_display = "\u2014"
+    campanas_display = "\u2014"
+
+k1.metric("Gasto", gasto_display, help="Inversi?n de los informes consolidados")
+k2.metric("ROAS", roas_display, help="Retorno publicitario de los informes consolidados")
+k3.metric("Campa\u00f1as", campanas_display, help="Registros incluidos en el informe consolidado")
+
+if df_all is not None:
+    spend_by_platform = (
+        df_all.loc[df_all["Spend"].notna()]
+        .groupby("Canal")["Spend"]
+        .sum()
+        .sort_values(ascending=False)
+    )
+    if len(spend_by_platform) > 1:
+        st.markdown("#### Inversi?n por plataforma")
+        st.bar_chart(spend_by_platform, height=240)
+    st.markdown("#### Rendimiento consolidado")
+    st.dataframe(df_all, width="stretch", hide_index=True)
+else:
+    st.info("Todav\u00eda no hay informes consolidados. Cuando cargues datos y elijas UNIFICAR TODO, las m\u00e9tricas mostrar\u00e1n los resultados reales.")
 
 st.divider()
-t1,t2=st.tabs(["ESPIA COMPETIDORES","CLONADOR"])
+st.markdown('<div class="agency-section-heading" id="tools"><div class="agency-kicker">CREATIVIDAD</div><h2>Herramientas de campaña</h2><p>Investigación orientativa y generación de propuestas originales.</p></div>', unsafe_allow_html=True)
+t1, t2 = st.tabs(["ESPÍA DE COMPETIDORES", "CLONADOR CREATIVO"])
 
 with t1:
-    st.caption("Demostrativo: genera hipótesis locales; no consulta ni verifica anuncios actuales.")
-    comp=st.text_input("Marca",placeholder="coto, dia, carrefour, levis, zara, fravega...")
-    c1,c2=st.columns(2)
+    st.subheader("Espía de competidores")
+    st.caption(
+        "Busca anuncios publicos en la Biblioteca de Meta. "
+        "Las ideas generadas por Agencia OS son orientativas y no son datos verificados."
+    )
+    comp = st.text_input(
+        "Marca o competidor",
+        placeholder="Ej.: Coto, Zara, Fravega...",
+        key="spy_competitor",
+    )
+    comp2 = st.text_input(
+        "Segunda marca para comparar (opcional)",
+        placeholder="Ej.: Carrefour",
+        key="spy_competitor_2",
+    )
+
+    c1, c2 = st.columns(2)
     with c1:
-        if st.button("ESPIAR AHORA",type="primary",use_container_width=True):
-            if not comp: st.warning("Poné marca")
-            else: st.session_state["spy_res"]=analisis_real_diferenciado(comp)
-    with c2:
-        if st.button("COMPARAR 2 MARCAS"):
-            if not comp: st.warning("Poné marca primero")
+        if st.button("BUSCAR ANUNCIOS PUBLICOS", type="primary", use_container_width=True):
+            if not comp.strip():
+                st.warning("Escribi una marca para buscar.")
             else:
-                otra = "dia" if "coto" in comp.lower() else "coto"
-                st.session_state["spy_res"]=analisis_real_diferenciado(comp)+"\n\n--- VS ---\n\n"+analisis_real_diferenciado(otra)
+                meta_url = (
+                    "https://www.facebook.com/ads/library/"
+                    "?active_status=active&ad_type=ALL&country=AR&media_type=all&q="
+                    + quote_plus(comp.strip())
+                )
+                st.session_state["spy_meta_url"] = meta_url
+                st.session_state["spy_last_comp"] = comp.strip()
+
+    with c2:
+        if st.button("GENERAR HIPOTESIS", use_container_width=True):
+            if not comp.strip():
+                st.warning("Escribi una marca para generar hipotesis.")
+            else:
+                st.session_state["spy_res"] = analisis_real_diferenciado(comp.strip())
+                st.session_state["spy_res_brand"] = comp.strip()
+
+    if "spy_meta_url" in st.session_state:
+        st.link_button(
+            "Abrir resultados en la Biblioteca de anuncios de Meta",
+            st.session_state["spy_meta_url"],
+            use_container_width=True,
+        )
+        st.caption(
+            "La busqueda se abre en Meta. Agencia OS no descarga ni verifica automaticamente "
+            "los anuncios mostrados en esa pagina."
+        )
+
+    if st.button("COMPARAR HIPOTESIS DE DOS MARCAS", use_container_width=True):
+        if not comp.strip() or not comp2.strip():
+            st.warning("Completa las dos marcas para compararlas.")
+        elif comp.strip().casefold() == comp2.strip().casefold():
+            st.warning("Eleg? dos marcas diferentes.")
+        else:
+            st.session_state["spy_res"] = (
+                analisis_real_diferenciado(comp.strip())
+                + "\n\n--- COMPARACION ORIENTATIVA ---\n\n"
+                + analisis_real_diferenciado(comp2.strip())
+            )
+            st.session_state["spy_res_brand"] = comp.strip() + " / " + comp2.strip()
+
+    st.markdown("#### Analizar un anuncio real")
+    st.caption(
+        "Pega el texto que ves en el anuncio. El analisis utiliza el contenido "
+        "aportado manualmente; no verifica el enlace, el anunciante ni las metricas."
+    )
+    spy_ad_url = st.text_input(
+        "Enlace del anuncio (opcional, no verificado)",
+        placeholder="https://...",
+        key="spy_ad_url",
+    )
+    spy_ad_copy = st.text_area(
+        "Texto del anuncio",
+        placeholder="Pega aqui el texto del anuncio que encontraste en Meta...",
+        height=150,
+        key="spy_ad_copy",
+    )
+
+    if st.button("ANALIZAR TEXTO APORTADO", use_container_width=True):
+        if not spy_ad_copy.strip():
+            st.warning("Pega el texto del anuncio antes de analizarlo.")
+        else:
+            ad_text = spy_ad_copy.strip()
+            lines = [line.strip() for line in ad_text.splitlines() if line.strip()]
+            words = ad_text.split()
+            normalized = "" .join(ch for ch in unicodedata.normalize("NFKD", ad_text.casefold()) if not unicodedata.combining(ch))
+
+            sentences = [
+                part.strip(" \t\r\n-?")
+                for part in ad_text.replace("!", ".").replace("?", ".").split(".")
+                if part.strip(" \t\r\n-?")
+            ]
+            hook = sentences[0] if sentences else ad_text[:180]
+
+            cta_terms = [
+                "descubri", "compra", "comprar", "compralo", "escribinos",
+                "contactanos", "reserva", "reservar", "pedilo", "pedi",
+                "conoce", "conoce mas", "mas informacion", "visitanos",
+                "proba", "proba ahora", "solicita", "consulta", "consultanos",
+                "sumate", "registrate", "inscribite", "hace tu pedido",
+                "hace clic", "entra ahora"
+            ]
+            cta_found = [term for term in cta_terms if term in normalized]
+
+            benefit_terms = [
+                "beneficio", "ahorro", "ahorra", "gratis", "rapido",
+                "facil", "calidad", "nuevo", "nueva", "solucion",
+                "resultado", "comodidad", "proteccion", "personalizado",
+                "coleccion", "oferta", "descuento", "promocion"
+            ]
+            benefits_found = [term for term in benefit_terms if term in normalized]
+
+            has_offer_signals = any(
+                marker in normalized for marker in ("$", "%", "ars", "usd", "2x1", "descuento", "promocion", "oferta")
+            )
+            has_question = "?" in ad_text or "?" in ad_text
+            has_urgency = any(
+                term in normalized for term in (
+                    "por tiempo limitado", "ultimos dias", "solo hoy",
+                    "hasta agotar", "no te lo pierdas"
+                )
+            )
+
+            report = [
+                "ANALISIS DEL TEXTO APORTADO",
+                "",
+                "ORIGEN Y LIMITACIONES",
+                "- Analisis automatico de texto proporcionado manualmente.",
+                "- No se verificaron el anunciante, el enlace ni la autenticidad del anuncio.",
+                "- No se consultaron estadisticas, alcance, gasto ni resultados de Meta.",
+                "",
+                "1. GANCHO PROBABLE",
+                f"- {hook[:240]}",
+                "",
+                "2. BENEFICIO O PROPUESTA",
+                (
+                    "- Posibles palabras de beneficio: " + ", ".join(benefits_found) + "."
+                    if benefits_found
+                    else "- No se detecto una promesa de beneficio clara mediante las palabras analizadas."
+                ),
+                "",
+                "3. OFERTA Y URGENCIA",
+                (
+                    "- Hay referencias que podrian indicar precio, descuento u oferta; su validez no fue verificada."
+                    if has_offer_signals
+                    else "- No se detectaron referencias habituales a precio o descuento."
+                ),
+                (
+                    "- Se detectaron expresiones de urgencia; no se verifico si tienen fundamento."
+                    if has_urgency
+                    else "- No se detectaron expresiones comunes de urgencia."
+                ),
+                "",
+                "4. LLAMADA A LA ACCION",
+                (
+                    "- Posibles CTA detectadas: " + ", ".join(cta_found) + "."
+                    if cta_found
+                    else "- No se detecto una llamada a la accion habitual. Puede estar expresada de otra manera."
+                ),
+                "",
+                "5. ESTRUCTURA Y FORMATO",
+                f"- Extension aproximada: {len(words)} palabras.",
+                f"- Lineas con contenido: {len(lines)}.",
+                f"- Contiene una pregunta: {'Si' if has_question else 'No'}.",
+                "",
+                "6. OPORTUNIDADES PARA TU PROPIA PUBLICIDAD",
+                "- Conserva la estructura que resulte util, pero redacta un mensaje original.",
+                "- Explica el beneficio de tu oferta en la primera frase.",
+                "- Agrega una demostracion o prueba real cuando este disponible.",
+                "- Usa precios, descuentos, urgencia y promesas solo si puedes verificarlos.",
+                "- Termina con una llamada a la accion concreta.",
+                "",
+                "ENLACE APORTADO (NO VERIFICADO)",
+                spy_ad_url.strip() or "No se proporciono un enlace.",
+            ]
+            st.session_state["spy_ad_analysis"] = "\n".join(report)
+            st.session_state["spy_ad_reference_text"] = ad_text
+            st.session_state["spy_ad_reference_hook"] = hook
+            st.session_state["spy_ad_reference_cta"] = cta_found[0] if cta_found else ""
+            st.session_state["spy_ad_reference_offer"] = has_offer_signals
+            st.session_state["spy_ad_reference_benefits"] = benefits_found
+
+    if "spy_ad_analysis" in st.session_state:
+        st.markdown("#### Resultado del analisis")
+        st.text(st.session_state["spy_ad_analysis"])
+
     if "spy_res" in st.session_state:
+        st.markdown("#### Hipotesis orientativas")
+        st.caption(
+            "Se generan con reglas y datos precargados. No representan una observacion "
+            "verificada de anuncios actuales ni de precios reales."
+        )
         st.text(st.session_state["spy_res"])
 
 with t2:
-    st.markdown("### Clonador")
-    desc=st.text_input("Tu ganadora")
-    comp_clone=st.text_input("Competidor")
-    if st.button("CLONAR"):
-        st.warning("El clonador todavía no genera variaciones; no se realizó una clonación.")
+    st.subheader("Clonador creativo")
+    st.caption(
+        "Crea propuestas originales para tu oferta. La marca de referencia no se consulta "
+        "automaticamente y sus anuncios no se copian."
+    )
+    desc = st.text_input(
+        "Tu producto, servicio u oferta",
+        placeholder="Ej.: servicio de instalacion de aire acondicionado",
+        key="clone_offer",
+    )
+    benefits = st.text_input(
+        "Beneficios reales (opcional)",
+        placeholder="Ej.: atencion personalizada, instalacion incluida",
+        key="clone_benefits",
+    )
+    promo = st.text_input(
+        "Promocion y condiciones reales (opcional)",
+        placeholder="Ej.: 10% hasta el viernes, sujeto a condiciones",
+        key="clone_promo",
+    )
+    comp_clone = st.text_input(
+        "Marca de referencia (opcional)",
+        placeholder="Ej.: una marca competidora",
+        key="clone_reference",
+    )
+    objective = st.selectbox(
+        "Objetivo de la publicidad",
+        ["Ventas", "Generar consultas", "Reconocimiento de marca"],
+        key="clone_objective",
+    )
+
+    if st.button("GENERAR 3 PROPUESTAS", type="primary", use_container_width=True):
+        if not desc.strip():
+            st.warning("Describe tu producto, servicio u oferta.")
+        else:
+            offer = desc.strip().rstrip(".!?")
+            benefits_text = benefits.strip().rstrip(".")
+            promo_text = promo.strip().rstrip(".")
+            reference_text = st.session_state.get("spy_ad_reference_text", "").strip()
+            reference_hook = st.session_state.get("spy_ad_reference_hook", "").strip()
+            reference_brand = comp_clone.strip()
+
+            if objective == "Ventas":
+                ctas = [
+                    "Consulta precio y disponibilidad.",
+                    "Escribinos para conocer las opciones.",
+                    "Hacé tu consulta antes de decidir.",
+                ]
+            elif objective == "Generar consultas":
+                ctas = [
+                    "Contanos qué necesitás.",
+                    "Escribinos y consultá los detalles.",
+                    "Dejanos tu consulta y te orientamos.",
+                ]
+            else:
+                ctas = [
+                    "Conocé la propuesta.",
+                    "Descubrí más sobre esta opción.",
+                    "Conocé los detalles.",
+                ]
+
+            offer_norm = "".join(
+                ch for ch in __import__("unicodedata").normalize("NFKD", offer.casefold())
+                if not __import__("unicodedata").combining(ch)
+            )
+            prefix = "servicio de instalacion de "
+            if offer_norm.startswith(prefix):
+                item = offer[len(prefix):].strip()
+                item_norm = "".join(
+                    ch for ch in __import__("unicodedata").normalize("NFKD", item.casefold())
+                    if not __import__("unicodedata").combining(ch)
+                )
+                if item_norm == "aire acondicionado":
+                    offer_for_copy = "la instalación de tu aire acondicionado"
+                    title_1 = "¿Estás por instalar tu aire acondicionado?"
+                    body_1 = (
+                        "Consultá por la instalación de tu aire acondicionado "
+                        "y conocé los detalles antes de decidir."
+                    )
+                else:
+                    offer_for_copy = f"la instalación de {item}"
+                    title_1 = f"¿Estás por instalar {item}?"
+                    body_1 = (
+                        f"Consultá por la instalación de {item} "
+                        "y conocé los detalles antes de decidir."
+                    )
+            else:
+                offer_for_copy = offer
+                title_1 = f"¿Buscás {offer}?"
+                body_1 = (
+                    f"Conocé la propuesta de {offer} y consultá los detalles "
+                    "para evaluar si se ajusta a lo que necesitás."
+                )
+
+            benefit_line = f" Beneficios informados: {benefits_text}." if benefits_text else ""
+            promo_line = f" Promoción informada: {promo_text}." if promo_text else ""
+            details_line = " Consultá las características y condiciones." if not benefits_text else ""
+
+            proposals = [
+                (
+                    f"ANUNCIO 1 — ATRAER LA ATENCIÓN\n"
+                    f"TÍTULO: {title_1}\n"
+                    f"TEXTO: {body_1}{benefit_line}{promo_line}{details_line}\n"
+                    f"CTA: {ctas[0]}"
+                ),
+                (
+                    "ANUNCIO 2 — DESTACAR EL VALOR\n"
+                    "TÍTULO: Elegí con información clara\n"
+                    f"TEXTO: Antes de elegir, consultá los detalles de {offer_for_copy} "
+                    f"y sus condiciones.{benefit_line}{promo_line}\n"
+                    f"CTA: {ctas[1]}"
+                ),
+                (
+                    "ANUNCIO 3 — GENERAR UNA CONVERSACIÓN\n"
+                    "TÍTULO: Hablemos de lo que necesitás\n"
+                    f"TEXTO: Contanos qué necesitás y te orientamos sobre {offer_for_copy}. "
+                    f"Consultá los detalles antes de decidir.{benefit_line}{promo_line}\n"
+                    f"CTA: {ctas[2]}"
+                ),
+            ]
+
+            st.session_state["clone_res"] = proposals
+            if reference_text:
+                st.session_state["clone_reference_note"] = (
+                    "Texto de referencia aportado manualmente. Gancho detectado: "
+                    + (reference_hook or "no disponible") + ". "
+                    + "Anunciante, enlace y métricas no verificados. "
+                    + "Generación por reglas, no IA generativa."
+                )
+            elif reference_brand:
+                st.session_state["clone_reference_note"] = (
+                    f"Marca ingresada: {reference_brand}. No fue consultada ni verificada. "
+                    "Generación por reglas, no IA generativa."
+                )
+            else:
+                if benefits_text or promo_text:
+                    st.session_state["clone_reference_note"] = (
+                        "Generación por reglas, no IA generativa. "
+                        "Se incluyeron los beneficios y/o la promoción que ingresaste; "
+                        "no se verificaron de forma independiente."
+                    )
+                else:
+                    st.session_state["clone_reference_note"] = (
+                        "Generación por reglas, no IA generativa. "
+                        "Sin beneficios ni promociones aportados, se usan textos generales."
+                    )
+
+    if "clone_res" in st.session_state:
+        note = st.session_state.get("clone_reference_note", "")
+        if note:
+            st.info(note)
+
+        for proposal in st.session_state["clone_res"]:
+            with st.container(border=True):
+                st.code(proposal, language=None)
