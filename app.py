@@ -1980,6 +1980,30 @@ with t2:
             promo_line = f" Promoción informada: {promo_text}." if promo_text else ""
             details_line = " Consultá las características y condiciones." if not benefits_text else ""
 
+            benefits_norm = "".join(
+                ch for ch in unicodedata.normalize("NFKD", benefits_text.casefold())
+                if not unicodedata.combining(ch)
+            )
+            benefit_angles = []
+            if "diagnostico" in benefits_norm:
+                benefit_angles.append(
+                    "Consultá por el diagnóstico del problema y qué incluye la atención."
+                )
+            if "instalacion" in benefits_norm:
+                benefit_angles.append(
+                    "Conocé qué incluye la instalación y las condiciones del servicio."
+                )
+            if "atencion personalizada" in benefits_norm:
+                benefit_angles.append(
+                    "Consultá cómo funciona la atención personalizada para tu caso."
+                )
+            benefit_angle = " ".join(benefit_angles)
+            if not benefit_angle:
+                benefit_angle = (
+                    f"Consultá qué incluye {offer_for_copy} y las condiciones "
+                    "del servicio antes de decidir."
+                )
+
             proposals = [
                 (
                     f"ANUNCIO 1 — ATRAER LA ATENCIÓN\n"
@@ -1988,17 +2012,15 @@ with t2:
                     f"CTA: {ctas[0]}"
                 ),
                 (
-                    "ANUNCIO 2 — DESTACAR EL VALOR\n"
-                    "TÍTULO: Elegí con información clara\n"
-                    f"TEXTO: Antes de elegir, consultá los detalles de {offer_for_copy} "
-                    f"y sus condiciones.{benefit_line}{promo_line}\n"
+                    "ANUNCIO 2 \u2014 DESTACAR EL VALOR\n"
+                    f"T\u00cdTULO: Conoc\u00e9 mejor {offer_for_copy}\n"
+                    f"TEXTO: {benefit_angle}{promo_line}\n"
                     f"CTA: {ctas[1]}"
                 ),
                 (
-                    "ANUNCIO 3 — GENERAR UNA CONVERSACIÓN\n"
-                    "TÍTULO: Hablemos de lo que necesitás\n"
-                    f"TEXTO: Contanos qué necesitás y te orientamos sobre {offer_for_copy}. "
-                    f"Consultá los detalles antes de decidir.{benefit_line}{promo_line}\n"
+                    "ANUNCIO 3 \u2014 GENERAR UNA CONVERSACI\u00d3N\n"
+                    "T\u00cdTULO: Busquemos la opci\u00f3n para vos\n"
+                    f"TEXTO: Contanos qu\u00e9 necesit\u00e1s y consult\u00e1 los detalles de {offer_for_copy} para evaluar si se ajusta a tu caso.{benefit_line}{promo_line}\n"
                     f"CTA: {ctas[2]}"
                 ),
             ]
