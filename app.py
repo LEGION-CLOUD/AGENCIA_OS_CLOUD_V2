@@ -748,7 +748,7 @@ BRAND_DB = {
 
 def coincide_termino(texto, termino):
     """Busca términos completos para evitar coincidencias dentro de otras palabras."""
-    return re.search(r"(?<!\\w)" + re.escape(termino) + r"(?!\\w)", texto) is not None
+    return re.search(r"(?<!\w)" + re.escape(termino) + r"(?!\w)", texto) is not None
 
 
 def analisis_real_diferenciado(competidor):
