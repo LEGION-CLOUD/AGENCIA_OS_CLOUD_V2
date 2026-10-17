@@ -5,6 +5,7 @@ import os, json, random, string, hashlib
 import uuid
 from urllib.parse import quote_plus
 import unicodedata
+import re
 from datetime import date, datetime, timedelta
 from meta_ads import (
     CAMPAIGN_COLUMNS,
@@ -745,12 +746,21 @@ BRAND_DB = {
     "musimundo": {"industria":"TECH","pos":"Tech joven + gaming + Musimundo a todo","fuerte":"Gaming, audio, joven","debil":"Stock inconsistente","ticket":90000},
 }
 
+def coincide_termino(texto, termino):
+    """Busca términos completos para evitar coincidencias dentro de otras palabras."""
+    return re.search(r"(?<!\w)" + re.escape(termino) + r"(?!\w)", texto) is not None
+
+
 def analisis_real_diferenciado(competidor):
     nombre = competidor.strip()
     if not nombre:
         return "Escribi una marca para generar propuestas."
 
-    comp_lower = nombre.casefold()
+    comp_lower = "".join(
+        caracter
+        for caracter in unicodedata.normalize("NFKD", nombre.casefold())
+        if not unicodedata.combining(caracter)
+    )
 
     sectores = {
         "SUPERMERCADO": [
@@ -762,14 +772,19 @@ def analisis_real_diferenciado(competidor):
             "complot", "mango", "h&m", "47 street"
         ],
         "TECH": [
-            "fravega", "fravega", "garbarino", "musimundo",
-            "electro", "tecnologia", "tecnologia", "gaming"
+            "fravega", "frávega", "garbarino", "musimundo",
+            "samsung", "galaxy", "lg", "motorola", "xiaomi", "nvidia",
+            "redmi", "huawei", "honor", "sony", "playstation",
+            "xbox", "nintendo", "lenovo", "asus", "acer",
+            "hp", "dell", "intel", "amd", "apple", "iphone",
+            "ipad", "macbook", "electro", "tecnologia",
+            "tecnología", "gaming"
         ],
     }
 
     industria = "GENERAL"
     for sector, palabras in sectores.items():
-        if any(palabra in comp_lower for palabra in palabras):
+        if any(coincide_termino(comp_lower, palabra) for palabra in palabras):
             industria = sector
             break
 
@@ -818,11 +833,29 @@ def analisis_real_diferenciado(competidor):
         if hook not in seleccion_hooks:
             seleccion_hooks.append(hook)
 
-    formatos = [
-        "Video vertical breve mostrando el producto o servicio en uso.",
-        "Carrusel que explique tres beneficios comprobables.",
-        "Pieza estatica con una propuesta clara y una llamada a la accion.",
-    ]
+    formatos_por_sector = {
+        "SUPERMERCADO": [
+            "Video vertical mostrando como planificar una compra semanal.",
+            "Carrusel con una lista de compras organizada por categorias.",
+            "Pieza estatica con un consejo practico para comparar productos.",
+        ],
+        "MODA": [
+            "Video vertical mostrando tres combinaciones de una prenda.",
+            "Carrusel con detalles, calce y distintas formas de uso.",
+            "Pieza estatica destacando materiales y caracteristicas visibles.",
+        ],
+        "TECH": [
+            "Video vertical demostrando funciones reales de un dispositivo.",
+            "Carrusel explicando compatibilidad, prestaciones y garantia.",
+            "Pieza estatica con especificaciones comprobables del producto.",
+        ],
+        "GENERAL": [
+            "Video vertical mostrando el producto o servicio en uso.",
+            "Carrusel con beneficios comprobables y preguntas frecuentes.",
+            "Pieza estatica con una propuesta clara y llamada a la accion.",
+        ],
+    }
+    formatos = formatos_por_sector[industria]
 
     angulos = {
         "SUPERMERCADO": "Planificacion, utilidad y claridad al comprar.",
@@ -831,13 +864,37 @@ def analisis_real_diferenciado(competidor):
         "GENERAL": "Beneficio principal, demostracion y respuesta a dudas.",
     }
 
-    ideas = [
-        f"Guia practica relacionada con la categoria de {nombre}.",
-        f"Demostracion paso a paso de una solucion para el publico de {nombre}.",
-        f"Preguntas frecuentes que un cliente deberia resolver antes de comprar.",
-        f"Comparativa basada en datos comprobables, si hay fuentes disponibles.",
-        f"Testimonio real de un cliente, solo si se cuenta con su autorizacion.",
-    ]
+    ideas_por_sector = {
+        "SUPERMERCADO": [
+            "Guia para organizar una lista de compras segun las necesidades del hogar.",
+            "Demostracion de como comparar precio por unidad entre productos.",
+            "Planificacion de comidas semanales con una lista de ingredientes.",
+            "Preguntas frecuentes sobre conservacion y uso de productos.",
+            "Comparativa de productos basada en etiquetas y precios verificados.",
+        ],
+        "MODA": [
+            "Guia para combinar una prenda en distintas ocasiones.",
+            "Demostracion de detalles, calce y terminaciones visibles.",
+            "Consejos para elegir talles consultando las medidas publicadas.",
+            "Preguntas frecuentes sobre materiales y cuidados de las prendas.",
+            "Comparativa de prendas basada en caracteristicas verificables.",
+        ],
+        "TECH": [
+            "Guia para comprobar compatibilidad antes de comprar un dispositivo.",
+            "Demostracion de funciones disponibles en el producto.",
+            "Explicacion de garantia y especificaciones publicadas.",
+            "Preguntas frecuentes sobre configuracion y uso.",
+            "Comparativa basada en especificaciones verificadas de los equipos.",
+        ],
+        "GENERAL": [
+            f"Guia practica relacionada con la categoria de {nombre}.",
+            f"Demostracion paso a paso de una solucion para el publico de {nombre}.",
+            "Preguntas frecuentes que un cliente deberia resolver antes de comprar.",
+            "Comparativa basada en datos comprobables, si hay fuentes disponibles.",
+            "Testimonio real de un cliente, solo si se cuenta con su autorizacion.",
+        ],
+    }
+    ideas = ideas_por_sector[industria]
 
     ideas_seleccionadas = []
     for i in range(5):
@@ -1650,7 +1707,10 @@ with t1:
             else:
                 meta_url = (
                     "https://www.facebook.com/ads/library/"
-                    "?active_status=active&ad_type=ALL&country=AR&media_type=all&q="
+                    "?active_status=active&ad_type=all&country=AR"
+                    "&is_targeted_country=false&media_type=all"
+                    "&search_type=keyword_unordered"
+                    "&sort_data[direction]=desc&sort_data[mode]=total_impressions&q="
                     + quote_plus(comp.strip())
                 )
                 st.session_state["spy_meta_url"] = meta_url
@@ -1920,6 +1980,30 @@ with t2:
             promo_line = f" Promoción informada: {promo_text}." if promo_text else ""
             details_line = " Consultá las características y condiciones." if not benefits_text else ""
 
+            benefits_norm = "".join(
+                ch for ch in unicodedata.normalize("NFKD", benefits_text.casefold())
+                if not unicodedata.combining(ch)
+            )
+            benefit_angles = []
+            if "diagnostico" in benefits_norm:
+                benefit_angles.append(
+                    "Consultá por el diagnóstico del problema y qué incluye la atención."
+                )
+            if "instalacion" in benefits_norm:
+                benefit_angles.append(
+                    "Conocé qué incluye la instalación y las condiciones del servicio."
+                )
+            if "atencion personalizada" in benefits_norm:
+                benefit_angles.append(
+                    "Consultá cómo funciona la atención personalizada para tu caso."
+                )
+            benefit_angle = " ".join(benefit_angles)
+            if not benefit_angle:
+                benefit_angle = (
+                    f"Consultá qué incluye {offer_for_copy} y las condiciones "
+                    "del servicio antes de decidir."
+                )
+
             proposals = [
                 (
                     f"ANUNCIO 1 — ATRAER LA ATENCIÓN\n"
@@ -1928,17 +2012,15 @@ with t2:
                     f"CTA: {ctas[0]}"
                 ),
                 (
-                    "ANUNCIO 2 — DESTACAR EL VALOR\n"
-                    "TÍTULO: Elegí con información clara\n"
-                    f"TEXTO: Antes de elegir, consultá los detalles de {offer_for_copy} "
-                    f"y sus condiciones.{benefit_line}{promo_line}\n"
+                    "ANUNCIO 2 \u2014 DESTACAR EL VALOR\n"
+                    f"T\u00cdTULO: Conoc\u00e9 mejor {offer_for_copy}\n"
+                    f"TEXTO: {benefit_angle}{promo_line}\n"
                     f"CTA: {ctas[1]}"
                 ),
                 (
-                    "ANUNCIO 3 — GENERAR UNA CONVERSACIÓN\n"
-                    "TÍTULO: Hablemos de lo que necesitás\n"
-                    f"TEXTO: Contanos qué necesitás y te orientamos sobre {offer_for_copy}. "
-                    f"Consultá los detalles antes de decidir.{benefit_line}{promo_line}\n"
+                    "ANUNCIO 3 \u2014 GENERAR UNA CONVERSACI\u00d3N\n"
+                    "T\u00cdTULO: Busquemos la opci\u00f3n para vos\n"
+                    f"TEXTO: Contanos qu\u00e9 necesit\u00e1s y consult\u00e1 los detalles de {offer_for_copy} para evaluar si se ajusta a tu caso.{benefit_line}{promo_line}\n"
                     f"CTA: {ctas[2]}"
                 ),
             ]
