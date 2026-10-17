@@ -1650,7 +1650,10 @@ with t1:
             else:
                 meta_url = (
                     "https://www.facebook.com/ads/library/"
-                    "?active_status=active&ad_type=ALL&country=AR&media_type=all&q="
+                    "?active_status=active&ad_type=all&country=AR"
+                    "&is_targeted_country=false&media_type=all"
+                    "&search_type=keyword_unordered"
+                    "&sort_data[direction]=desc&sort_data[mode]=total_impressions&q="
                     + quote_plus(comp.strip())
                 )
                 st.session_state["spy_meta_url"] = meta_url
