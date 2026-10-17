@@ -21,6 +21,9 @@ class AdCopyTests(unittest.TestCase):
         self.assertNotIn("servicio de Diseños modernos", joined)
         self.assertNotIn("Sin descuentos ni precios inventados", joined)
         self.assertIn("Nueva colección de temporada", joined)
+        self.assertNotIn("Diseños modernos, prendas versátiles, combinaciones para distintos estilos", joined)
+        self.assertIn("Prendas versátiles para combinar según tu estilo", proposals[1])
+        self.assertNotIn("condiciones del servicio", joined.lower())
 
     def test_service_copy_keeps_installation_context(self):
         proposals = generate_ad_proposals(
