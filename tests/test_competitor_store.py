@@ -10,7 +10,9 @@ from competitor_store import (
     create_observation,
     export_observations_json,
     load_observations,
+    load_observations_for_tenants,
     save_observations,
+    tenant_id_candidates_for_license,
     tenant_id_for_license,
 )
 
@@ -75,11 +77,7 @@ class CompetitorStoreTests(unittest.TestCase):
         self.assertNotEqual(tenant_a, "LEGION-SECRET-KEY")
 
         expected_identity = json.dumps(
-            {
-                "client": LICENSE["client"],
-                "created": LICENSE["created"],
-                "expires": LICENSE["expires"],
-            },
+            {"client": LICENSE["client"], "created": LICENSE["created"]},
             sort_keys=True,
             ensure_ascii=False,
             separators=(",", ":"),
@@ -88,6 +86,42 @@ class CompetitorStoreTests(unittest.TestCase):
             tenant_a,
             hashlib.sha256(expected_identity.encode("utf-8")).hexdigest(),
         )
+
+    def test_candidate_ids_cover_known_prototype_variants(self):
+        candidates = tenant_id_candidates_for_license(
+            LICENSE, "LEGION-TEST-KEY"
+        )
+        self.assertEqual(len(candidates), 3)
+        self.assertEqual(candidates[0], tenant_id_for_license(LICENSE))
+        self.assertTrue(all(len(value) == 64 for value in candidates))
+        self.assertNotEqual(candidates[0], candidates[1])
+        self.assertEqual(
+            candidates[2],
+            hashlib.sha256(b"LEGION-TEST-KEY").hexdigest(),
+        )
+
+    def test_load_resolves_existing_legacy_tenant_hash(self):
+        candidates = tenant_id_candidates_for_license(LICENSE)
+        legacy_tenant = candidates[1]
+        record = create_observation(RECORD)
+
+        class TenantAwareHttp:
+            def get(self, url, **kwargs):
+                asked = kwargs["params"]["tenant_id"].removeprefix("eq.")
+                if asked == legacy_tenant:
+                    return FakeResponse(
+                        [{"tenant_id": legacy_tenant, "observations": [record]}]
+                    )
+                return FakeResponse([])
+
+        resolved, observations = load_observations_for_tenants(
+            "https://example.supabase.co",
+            "server-only-key",
+            candidates,
+            http=TenantAwareHttp(),
+        )
+        self.assertEqual(resolved, legacy_tenant)
+        self.assertEqual(observations, [record])
 
     def test_tenant_hash_requires_stable_license_fields(self):
         with self.assertRaises(ValueError):
