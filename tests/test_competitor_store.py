@@ -76,7 +76,11 @@ class CompetitorStoreTests(unittest.TestCase):
         self.assertNotEqual(tenant_a, "LEGION-SECRET-KEY")
 
         expected_identity = json.dumps(
-            {"client": LICENSE["client"], "created": LICENSE["created"]},
+            {
+                "client": LICENSE["client"],
+                "created": LICENSE["created"],
+                "expires": LICENSE["expires"],
+            },
             sort_keys=True,
             ensure_ascii=False,
             separators=(",", ":"),
