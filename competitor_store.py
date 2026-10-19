@@ -71,6 +71,11 @@ def tenant_id_candidates_for_license(license_info, license_key=None):
     # New tenants use the license key hash, not customer text, as the strongest
     # stable namespace. The raw key is never stored or sent to the observations table.
     if isinstance(license_key, str) and license_key.strip():
+        normalized_key = license_key.strip().upper()
+        candidates.append(
+            hashlib.sha256(normalized_key.encode("utf-8")).hexdigest()
+        )
+        # Also try exact-input hashing for compatibility with an earlier patch.
         candidates.append(
             hashlib.sha256(license_key.strip().encode("utf-8")).hexdigest()
         )
