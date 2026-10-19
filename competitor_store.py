@@ -52,27 +52,55 @@ class CompetitorStoreError(RuntimeError):
     """Error de persistencia del Espía sin exponer secretos de servidor."""
 
 
-def tenant_id_for_license(license_info):
-    """Stable ID compatible with the existing local Espía row: SHA-256(client, created, expires)."""
+def tenant_id_candidates_for_license(license_info, license_key=None):
+    """Return known stable/legacy tenant hashes, preferred canonical ID first."""
     if not isinstance(license_info, dict):
         raise ValueError("No se pudo identificar la licencia del Espía.")
 
     client = str(license_info.get("client") or "").strip()
     created = str(license_info.get("created") or "").strip()
     expires = str(license_info.get("expires") or "").strip()
-    if not client or not created or not expires:
+    if not client or not created:
         raise ValueError(
             "La licencia no contiene los datos estables necesarios "
             "para separar las observaciones."
         )
 
-    identity = json.dumps(
-        {"client": client, "created": created, "expires": expires},
+    candidates = []
+
+    # Preferred tenant ID: stable across license renewals.
+    stable_identity = json.dumps(
+        {"client": client, "created": created},
         sort_keys=True,
         ensure_ascii=False,
         separators=(",", ":"),
     )
-    return hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    candidates.append(hashlib.sha256(stable_identity.encode("utf-8")).hexdigest())
+
+    # Compatibility with the alternate prototype hash that included expiration.
+    if expires:
+        expiring_identity = json.dumps(
+            {"client": client, "created": created, "expires": expires},
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        candidates.append(
+            hashlib.sha256(expiring_identity.encode("utf-8")).hexdigest()
+        )
+
+    # Compatibility with the early draft that hashed the entered license itself.
+    if isinstance(license_key, str) and license_key.strip():
+        candidates.append(
+            hashlib.sha256(license_key.strip().encode("utf-8")).hexdigest()
+        )
+
+    return list(dict.fromkeys(candidates))
+
+
+def tenant_id_for_license(license_info):
+    """Return the preferred stable tenant ID (without expiration in the hash)."""
+    return tenant_id_candidates_for_license(license_info)[0]
 
 
 def _validate_tenant_id(tenant_id):
@@ -215,7 +243,7 @@ def _friendly_request_error(action, exc):
     )
 
 
-def load_observations(supabase_url, secret_key, tenant_id, *, http=requests):
+def _read_observation_row(supabase_url, secret_key, tenant_id, *, http=requests):
     _validate_tenant_id(tenant_id)
     url = _table_url(supabase_url)
     headers = _headers(secret_key)
@@ -239,7 +267,7 @@ def load_observations(supabase_url, secret_key, tenant_id, *, http=requests):
     if not isinstance(rows, list):
         raise CompetitorStoreError("Supabase devolvió un formato inesperado.")
     if not rows:
-        return []
+        return None
 
     observations = rows[0].get("observations", [])
     if not isinstance(observations, list):
@@ -250,6 +278,34 @@ def load_observations(supabase_url, secret_key, tenant_id, *, http=requests):
         raise CompetitorStoreError(
             f"Hay una observación guardada con formato inválido ({type(exc).__name__})."
         ) from exc
+
+
+def load_observations(supabase_url, secret_key, tenant_id, *, http=requests):
+    observations = _read_observation_row(
+        supabase_url, secret_key, tenant_id, http=http
+    )
+    return [] if observations is None else observations
+
+
+def load_observations_for_tenants(
+    supabase_url, secret_key, tenant_ids, *, http=requests
+):
+    """Find the first existing tenant row among known prototype hash variants.
+
+    Returns (tenant_id, observations). If none exists, returns the preferred
+    first ID and an empty list so new records use the stable canonical ID.
+    """
+    candidates = list(dict.fromkeys(tenant_ids or []))
+    if not candidates:
+        raise ValueError("No hay identificadores disponibles para la licencia.")
+    for tenant_id in candidates:
+        _validate_tenant_id(tenant_id)
+        existing = _read_observation_row(
+            supabase_url, secret_key, tenant_id, http=http
+        )
+        if existing is not None:
+            return tenant_id, existing
+    return candidates[0], []
 
 
 def save_observations(
