@@ -2,7 +2,6 @@ import hashlib
 import json
 import unittest
 from datetime import date
-from unittest.mock import Mock
 
 import requests
 
@@ -79,7 +78,8 @@ class CompetitorStoreTests(unittest.TestCase):
             {
                 "client": LICENSE["client"],
                 "created": LICENSE["created"],
-                    },
+                "expires": LICENSE["expires"],
+            },
             sort_keys=True,
             ensure_ascii=False,
             separators=(",", ":"),
