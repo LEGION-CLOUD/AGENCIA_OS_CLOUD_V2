@@ -79,8 +79,7 @@ class CompetitorStoreTests(unittest.TestCase):
             {
                 "client": LICENSE["client"],
                 "created": LICENSE["created"],
-                "expires": LICENSE["expires"],
-            },
+                    },
             sort_keys=True,
             ensure_ascii=False,
             separators=(",", ":"),
