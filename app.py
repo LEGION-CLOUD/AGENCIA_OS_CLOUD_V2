@@ -34,6 +34,14 @@ from tiktok_ads import (
     fetch_campaign_report,
     normalize_advertiser_id,
 )
+from competitor_store import (
+    CompetitorStoreError,
+    create_observation,
+    export_observations_json,
+    load_observations,
+    save_observations,
+    tenant_id_for_license,
+)
 from ad_copy import generate_ad_proposals
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
@@ -708,6 +716,14 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "df_all",
     "gasto_all",
     "roas_all",
+    "competitor_tenant_id",
+    "competitor_observations_v1",
+    "competitor_observations_loaded_tenant_v1",
+    "competitor_observations_load_error_v1",
+    "competitor_observations_unsaved_v1",
+    "spy_saved_observations_filter",
+    "spy_compare_first",
+    "spy_compare_second",
 )
 
 
@@ -1065,6 +1081,7 @@ if not st.session_state["license_valid"]:
             ok,info=validate_license(lic_input,licenses)
             if ok:
                 start_license_session(st.session_state)
+                st.session_state["competitor_tenant_id"] = tenant_id_for_license(info)
                 if google_config is not None:
                     current_license_fingerprint = fingerprint_license(
                         lic_input,
@@ -1126,6 +1143,10 @@ if pending_oauth_callback is not None and google_license_fingerprint:
 lic_data=st.session_state.get("license_data",{})
 if "_license_scope" not in st.session_state:
     start_license_session(st.session_state)
+if st.session_state.get("license_valid") and lic_data:
+    st.session_state.setdefault(
+        "competitor_tenant_id", tenant_id_for_license(lic_data)
+    )
 cliente_default=lic_data.get("client","CLIENTE")
 meta_download_requested = False
 google_download_requested = False
@@ -1684,6 +1705,43 @@ st.markdown('<div class="agency-section-heading" id="tools"><div class="agency-k
 t1, t2 = st.tabs(["ESPÍA DE COMPETIDORES", "CLONADOR CREATIVO"])
 
 with t1:
+    tenant_id = st.session_state.get("competitor_tenant_id")
+    loaded_tenant_id = st.session_state.get(
+        "competitor_observations_loaded_tenant_v1"
+    )
+    if tenant_id and loaded_tenant_id != tenant_id:
+        try:
+            cloud_observations = load_observations(
+                SUPABASE_URL, SUPABASE_SECRET_KEY, tenant_id
+            )
+        except CompetitorStoreError as exc:
+            st.session_state["competitor_observations_load_error_v1"] = str(exc)
+        else:
+            st.session_state["competitor_observations_v1"] = cloud_observations
+            st.session_state["competitor_observations_loaded_tenant_v1"] = tenant_id
+            st.session_state["competitor_observations_unsaved_v1"] = False
+            st.session_state.pop("competitor_observations_load_error_v1", None)
+
+    observation_load_error = st.session_state.get(
+        "competitor_observations_load_error_v1"
+    )
+    competitor_storage_ready = bool(
+        tenant_id
+        and st.session_state.get("competitor_observations_loaded_tenant_v1")
+        == tenant_id
+        and not observation_load_error
+    )
+    if observation_load_error:
+        st.warning(
+            "No se pudieron cargar las observaciones guardadas. "
+            "El formulario de registro queda deshabilitado hasta resolverlo. "
+            f"Detalle: {observation_load_error}"
+        )
+    elif competitor_storage_ready:
+        st.caption("Almacenamiento de observaciones conectado a Supabase para esta licencia.")
+    else:
+        st.warning("Ingresá con una licencia válida para usar el registro persistente del Espía.")
+
     st.subheader("Espía de competidores")
     st.caption(
         "Busca anuncios publicos en la Biblioteca de Meta. "
@@ -1881,6 +1939,227 @@ with t1:
             "verificada de anuncios actuales ni de precios reales."
         )
         st.text(st.session_state["spy_res"])
+
+
+    st.divider()
+    st.markdown("#### Registrar y guardar una observación")
+    st.caption(
+        "Registrá los datos que observaste en una biblioteca pública. "
+        "Agencia OS no descarga automáticamente el anuncio ni verifica sus métricas."
+    )
+
+    with st.expander("Registrar una observación", expanded=False):
+        with st.form("competitor_observation_form", clear_on_submit=True):
+            obs_col1, obs_col2 = st.columns(2)
+            with obs_col1:
+                obs_brand = st.text_input(
+                    "Marca competidora",
+                    value=st.session_state.get("spy_last_comp", ""),
+                    key="spy_observation_brand",
+                )
+                obs_platform = st.selectbox(
+                    "Plataforma",
+                    ("Meta", "Google", "TikTok", "Otra"),
+                    key="spy_observation_platform",
+                )
+                obs_url = st.text_input(
+                    "URL pública del anuncio o fuente (opcional)",
+                    placeholder="https://...",
+                    key="spy_observation_url",
+                )
+                obs_date = st.date_input(
+                    "Fecha de observación",
+                    value=date.today(),
+                    key="spy_observation_date",
+                )
+                obs_format = st.text_input(
+                    "Formato creativo",
+                    placeholder="Video, imagen, carrusel...",
+                    key="spy_observation_format",
+                )
+                obs_headline = st.text_input(
+                    "Titular",
+                    key="spy_observation_headline",
+                )
+            with obs_col2:
+                obs_text = st.text_area(
+                    "Texto del anuncio",
+                    key="spy_observation_text",
+                    height=140,
+                )
+                obs_proposition = st.text_input(
+                    "Propuesta",
+                    key="spy_observation_proposition",
+                )
+                obs_offer = st.text_input(
+                    "Oferta (si corresponde)",
+                    key="spy_observation_offer",
+                )
+                obs_cta = st.text_input(
+                    "Llamada a la acción",
+                    key="spy_observation_cta",
+                )
+                obs_destination = st.text_input(
+                    "Destino público indicado",
+                    key="spy_observation_destination",
+                )
+            obs_notes = st.text_area("Notas", key="spy_observation_notes")
+            save_observation = st.form_submit_button(
+                "Guardar observación en la nube",
+                type="primary",
+                use_container_width=True,
+                disabled=not competitor_storage_ready,
+            )
+
+        if save_observation:
+            try:
+                new_record = create_observation({
+                    "brand": obs_brand,
+                    "platform": obs_platform,
+                    "source_url": obs_url,
+                    "observed_on": obs_date.isoformat(),
+                    "creative_format": obs_format,
+                    "headline": obs_headline,
+                    "text": obs_text,
+                    "proposition": obs_proposition,
+                    "offer": obs_offer,
+                    "call_to_action": obs_cta,
+                    "destination": obs_destination,
+                    "notes": obs_notes,
+                })
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                current_records = list(
+                    st.session_state.get("competitor_observations_v1", [])
+                )
+                candidate_records = current_records + [new_record]
+                st.session_state["competitor_observations_v1"] = candidate_records
+                try:
+                    save_observations(
+                        SUPABASE_URL, SUPABASE_SECRET_KEY,
+                        tenant_id, candidate_records
+                    )
+                except CompetitorStoreError as exc:
+                    st.session_state["competitor_observations_unsaved_v1"] = True
+                    st.error(f"No se confirmó el guardado en Supabase: {exc}")
+                    st.warning(
+                        "El registro queda en esta sesión. Descargá un JSON "
+                        "antes de cerrar y reintentá el guardado."
+                    )
+                else:
+                    st.session_state["competitor_observations_unsaved_v1"] = False
+                    st.success("Observación guardada en la sesión y en la nube.")
+                    st.rerun()
+
+    saved_observations = st.session_state.get("competitor_observations_v1", [])
+    if st.session_state.get("competitor_observations_unsaved_v1") and competitor_storage_ready:
+        if st.button(
+            "Reintentar guardado pendiente",
+            key="spy_retry_unsaved_observations",
+        ):
+            try:
+                save_observations(
+                    SUPABASE_URL, SUPABASE_SECRET_KEY,
+                    tenant_id, saved_observations
+                )
+            except CompetitorStoreError as exc:
+                st.error(f"El guardado sigue pendiente: {exc}")
+            else:
+                st.session_state["competitor_observations_unsaved_v1"] = False
+                st.success("Las observaciones pendientes ya están guardadas en Supabase.")
+                st.rerun()
+
+    if saved_observations:
+        st.markdown("#### Observaciones guardadas")
+        st.caption(f"Registros cargados para esta licencia: {len(saved_observations)}.")
+        st.download_button(
+            "Descargar respaldo JSON",
+            data=export_observations_json(saved_observations),
+            file_name="observaciones_competidores.json",
+            mime="application/json",
+            key="spy_export_observations_json",
+        )
+
+        filter_query = st.text_input(
+            "Buscar texto, marca o fuente",
+            key="spy_saved_observations_filter",
+        ).strip().casefold()
+        filtered_observations = [
+            item for item in saved_observations
+            if not filter_query or filter_query in " ".join(
+                str(item.get(field, "")) for field in (
+                    "brand", "platform", "source_url", "headline",
+                    "text", "proposition", "offer", "call_to_action",
+                    "destination", "notes",
+                )
+            ).casefold()
+        ]
+
+        display_rows = [
+            {
+                "Marca": item["brand"],
+                "Plataforma": item["platform"],
+                "Fecha": item["observed_on"],
+                "Formato": item["creative_format"],
+                "Titular": item["headline"],
+                "Oferta": item["offer"],
+                "CTA": item["call_to_action"],
+                "Fuente": item["source_url"] or "No indicada",
+            }
+            for item in filtered_observations
+        ]
+        st.dataframe(pd.DataFrame(display_rows), width="stretch", hide_index=True)
+
+        if len(filtered_observations) >= 2:
+            labels = {
+                item["id"]: (
+                    f'{item["brand"]} · {item["platform"]} · '
+                    f'{item["observed_on"]} · {item["headline"] or "Sin titular"}'
+                )
+                for item in filtered_observations
+            }
+            with st.expander("Comparar dos observaciones"):
+                compare_cols = st.columns(2)
+                first_id = compare_cols[0].selectbox(
+                    "Primera observación",
+                    list(labels),
+                    format_func=lambda value: labels[value],
+                    key="spy_compare_first",
+                )
+                second_id = compare_cols[1].selectbox(
+                    "Segunda observación",
+                    list(labels),
+                    index=min(1, len(labels) - 1),
+                    format_func=lambda value: labels[value],
+                    key="spy_compare_second",
+                )
+                if first_id == second_id:
+                    st.info("Elegí dos observaciones distintas para compararlas.")
+                else:
+                    first = next(item for item in filtered_observations if item["id"] == first_id)
+                    second = next(item for item in filtered_observations if item["id"] == second_id)
+                    diff_cols = st.columns(2)
+                    compare_fields = (
+                        ("Marca", "brand"),
+                        ("Titular", "headline"),
+                        ("Texto", "text"),
+                        ("Propuesta", "proposition"),
+                        ("Oferta", "offer"),
+                        ("CTA", "call_to_action"),
+                        ("Destino", "destination"),
+                        ("Fuente", "source_url"),
+                    )
+                    for col, record, heading in (
+                        (diff_cols[0], first, "Primera observación"),
+                        (diff_cols[1], second, "Segunda observación"),
+                    ):
+                        with col:
+                            st.markdown(f"**{heading}**")
+                            for label, field in compare_fields:
+                                st.markdown(f"**{label}:** {record.get(field) or 'No indicado'}")
+    elif competitor_storage_ready:
+        st.info("Todavía no hay observaciones guardadas para esta licencia.")
 
 with t2:
     st.subheader("Clonador creativo")
