@@ -726,6 +726,19 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "spy_saved_observations_filter",
     "spy_compare_first",
     "spy_compare_second",
+    "spy_observation_brand",
+    "spy_observation_platform",
+    "spy_observation_url",
+    "spy_observation_date",
+    "spy_observation_format",
+    "spy_observation_headline",
+    "spy_observation_text",
+    "spy_observation_proposition",
+    "spy_observation_offer",
+    "spy_observation_cta",
+    "spy_observation_destination",
+    "spy_observation_notes",
+    "spy_retry_unsaved_observations",
 )
 
 
