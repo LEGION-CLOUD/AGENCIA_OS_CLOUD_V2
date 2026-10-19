@@ -68,7 +68,14 @@ def tenant_id_candidates_for_license(license_info, license_key=None):
 
     candidates = []
 
-    # Preferred tenant ID: stable across license renewals.
+    # New tenants use the license key hash, not customer text, as the strongest
+    # stable namespace. The raw key is never stored or sent to the observations table.
+    if isinstance(license_key, str) and license_key.strip():
+        candidates.append(
+            hashlib.sha256(license_key.strip().encode("utf-8")).hexdigest()
+        )
+
+    # Compatibility with the first local prototype: client + created.
     stable_identity = json.dumps(
         {"client": client, "created": created},
         sort_keys=True,
@@ -87,12 +94,6 @@ def tenant_id_candidates_for_license(license_info, license_key=None):
         )
         candidates.append(
             hashlib.sha256(expiring_identity.encode("utf-8")).hexdigest()
-        )
-
-    # Compatibility with the early draft that hashed the entered license itself.
-    if isinstance(license_key, str) and license_key.strip():
-        candidates.append(
-            hashlib.sha256(license_key.strip().encode("utf-8")).hexdigest()
         )
 
     return list(dict.fromkeys(candidates))
