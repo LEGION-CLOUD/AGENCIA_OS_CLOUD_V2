@@ -38,8 +38,9 @@ from competitor_store import (
     CompetitorStoreError,
     create_observation,
     export_observations_json,
-    load_observations,
+    load_observations_for_tenants,
     save_observations,
+    tenant_id_candidates_for_license,
     tenant_id_for_license,
 )
 from ad_copy import generate_ad_proposals
@@ -717,6 +718,7 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "gasto_all",
     "roas_all",
     "competitor_tenant_id",
+    "competitor_tenant_candidates_v1",
     "competitor_observations_v1",
     "competitor_observations_loaded_tenant_v1",
     "competitor_observations_load_error_v1",
@@ -1081,7 +1083,9 @@ if not st.session_state["license_valid"]:
             ok,info=validate_license(lic_input,licenses)
             if ok:
                 start_license_session(st.session_state)
-                st.session_state["competitor_tenant_id"] = tenant_id_for_license(info)
+                tenant_candidates = tenant_id_candidates_for_license(info, lic_input)
+                st.session_state["competitor_tenant_candidates_v1"] = tenant_candidates
+                st.session_state["competitor_tenant_id"] = tenant_candidates[0]
                 if google_config is not None:
                     current_license_fingerprint = fingerprint_license(
                         lic_input,
@@ -1146,6 +1150,10 @@ if "_license_scope" not in st.session_state:
 if st.session_state.get("license_valid") and lic_data:
     st.session_state.setdefault(
         "competitor_tenant_id", tenant_id_for_license(lic_data)
+    )
+    st.session_state.setdefault(
+        "competitor_tenant_candidates_v1",
+        tenant_id_candidates_for_license(lic_data),
     )
 cliente_default=lic_data.get("client","CLIENTE")
 meta_download_requested = False
@@ -1711,14 +1719,20 @@ with t1:
     )
     if tenant_id and loaded_tenant_id != tenant_id:
         try:
-            cloud_observations = load_observations(
-                SUPABASE_URL, SUPABASE_SECRET_KEY, tenant_id
+            resolved_tenant_id, cloud_observations = load_observations_for_tenants(
+                SUPABASE_URL,
+                SUPABASE_SECRET_KEY,
+                st.session_state.get(
+                    "competitor_tenant_candidates_v1", [tenant_id]
+                ),
             )
         except CompetitorStoreError as exc:
             st.session_state["competitor_observations_load_error_v1"] = str(exc)
         else:
+            tenant_id = resolved_tenant_id
+            st.session_state["competitor_tenant_id"] = resolved_tenant_id
             st.session_state["competitor_observations_v1"] = cloud_observations
-            st.session_state["competitor_observations_loaded_tenant_v1"] = tenant_id
+            st.session_state["competitor_observations_loaded_tenant_v1"] = resolved_tenant_id
             st.session_state["competitor_observations_unsaved_v1"] = False
             st.session_state.pop("competitor_observations_load_error_v1", None)
 
