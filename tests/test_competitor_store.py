@@ -92,13 +92,13 @@ class CompetitorStoreTests(unittest.TestCase):
             LICENSE, "LEGION-TEST-KEY"
         )
         self.assertEqual(len(candidates), 3)
-        self.assertEqual(candidates[0], tenant_id_for_license(LICENSE))
-        self.assertTrue(all(len(value) == 64 for value in candidates))
-        self.assertNotEqual(candidates[0], candidates[1])
         self.assertEqual(
-            candidates[2],
+            candidates[0],
             hashlib.sha256(b"LEGION-TEST-KEY").hexdigest(),
         )
+        self.assertEqual(candidates[1], tenant_id_for_license(LICENSE))
+        self.assertTrue(all(len(value) == 64 for value in candidates))
+        self.assertNotEqual(candidates[1], candidates[2])
 
     def test_load_resolves_existing_legacy_tenant_hash(self):
         candidates = tenant_id_candidates_for_license(LICENSE)
