@@ -53,7 +53,7 @@ class CompetitorStoreError(RuntimeError):
 
 
 def tenant_id_candidates_for_license(license_info, license_key=None):
-    """Return known stable/legacy tenant hashes, preferred canonical ID first."""
+    """Return the primary license-key hash and known legacy tenant hash variants."""
     if not isinstance(license_info, dict):
         raise ValueError("No se pudo identificar la licencia del Espía.")
 
@@ -296,10 +296,10 @@ def load_observations(supabase_url, secret_key, tenant_id, *, http=requests):
 def load_observations_for_tenants(
     supabase_url, secret_key, tenant_ids, *, http=requests
 ):
-    """Find the first existing tenant row among known prototype hash variants.
+    """Find the first existing row among the primary and legacy tenant ID variants.
 
-    Returns (tenant_id, observations). If none exists, returns the preferred
-    first ID and an empty list so new records use the stable canonical ID.
+    Returns (tenant_id, observations). If no row exists, returns the first
+    candidate; new licenses pass the normalized license-key hash first.
     """
     candidates = list(dict.fromkeys(tenant_ids or []))
     if not candidates:
