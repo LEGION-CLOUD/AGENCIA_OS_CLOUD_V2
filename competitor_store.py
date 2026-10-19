@@ -53,7 +53,7 @@ class CompetitorStoreError(RuntimeError):
 
 
 def tenant_id_for_license(license_info):
-    """Stable ID compatible with the local prototype: SHA-256(client, created)."""
+    """Stable ID compatible with the local prototype: SHA-256(client, created, expires)."""
     if not isinstance(license_info, dict):
         raise ValueError("No se pudo identificar la licencia del Espía.")
 
