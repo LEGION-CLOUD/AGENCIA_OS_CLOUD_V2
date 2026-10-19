@@ -53,20 +53,21 @@ class CompetitorStoreError(RuntimeError):
 
 
 def tenant_id_for_license(license_info):
-    """Stable ID compatible with the local prototype: SHA-256(client, created)."""
+    """Stable ID compatible with the existing local Espía row: SHA-256(client, created, expires)."""
     if not isinstance(license_info, dict):
         raise ValueError("No se pudo identificar la licencia del Espía.")
 
     client = str(license_info.get("client") or "").strip()
     created = str(license_info.get("created") or "").strip()
-    if not client or not created:
+    expires = str(license_info.get("expires") or "").strip()
+    if not client or not created or not expires:
         raise ValueError(
             "La licencia no contiene los datos estables necesarios "
             "para separar las observaciones."
         )
 
     identity = json.dumps(
-        {"client": client, "created": created},
+        {"client": client, "created": created, "expires": expires},
         sort_keys=True,
         ensure_ascii=False,
         separators=(",", ":"),
