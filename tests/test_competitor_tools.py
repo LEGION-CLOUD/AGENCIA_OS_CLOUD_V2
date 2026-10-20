@@ -241,6 +241,33 @@ class AdVariationTests(unittest.TestCase):
         self.assertNotIn("Informaci?n", rendered)
         self.assertNotIn("Consult?", rendered)
 
+    def test_question_reference_is_reframed_and_each_variation_has_its_own_strategy(self):
+        reference = {
+            "headline": "¿Necesitás instalar un aire acondicionado?",
+            "text": "Conocé opciones para climatizar tu hogar.",
+            "call_to_action": "Solicitá información",
+        }
+        variations = generate_ad_variations(
+            self.inputs(
+                brand="Aire Hogar",
+                product="Instalación de aire acondicionado",
+                audience="hogares que necesitan climatización",
+                benefit="instalación coordinada a domicilio",
+                objective="Leads",
+                tone="Cercano",
+                offer="",
+            ),
+            reference=reference,
+        )
+
+        self.assertNotEqual(variations[0]["hook"], reference["headline"])
+        self.assertNotIn("¿Necesitás instalar", variations[0]["hook"])
+        self.assertEqual(len({item["hook"] for item in variations}), 3)
+        self.assertEqual(
+            len({item["reference_structure"] for item in variations}),
+            3,
+        )
+
     def test_generated_copy_does_not_contain_performance_metrics_or_claims(self):
         variations = generate_ad_variations(self.inputs())
         forbidden = ("ctr", "roas", "impresiones", "ventas garantizadas", "rendimiento validado")
