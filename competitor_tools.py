@@ -274,6 +274,9 @@ def _reference_kind(reference):
     source = source.casefold().strip().translate(
         str.maketrans("\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00f1", "aeiouun")
     )
+    if not source:
+        return "ninguna"
+
     if (
         "?" in source
         or "\u00bf" in source
