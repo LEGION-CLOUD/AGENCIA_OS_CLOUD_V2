@@ -50,6 +50,7 @@ from competitor_tools import (
     export_variations_txt,
     export_observations_csv,
     import_observations_json,
+    analyze_observation,
 )
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
@@ -731,6 +732,10 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "competitor_observations_load_error_v1",
     "competitor_observations_unsaved_v1",
     "spy_saved_observations_filter",
+    "competitor_public_search_market",
+    "competitor_analysis_selection",
+    "spy_analyze_saved_observation",
+    "spy_saved_observation_analysis",
     "spy_compare_first",
     "spy_compare_second",
     "spy_observation_brand",
@@ -770,6 +775,9 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "clone_variations_v1",
     "clone_v1_editor",
     "clone_v1_generate",
+    "clone_reference_mode",
+    "clone_reference_observation",
+    "clone_own_reference",
     "clone_v1_download_csv",
     "clone_v1_download_txt",
     "clone_legacy_generate",
@@ -1815,8 +1823,22 @@ with t1:
         "Busca anuncios publicos en la Biblioteca de Meta. "
         "Las ideas generadas por Agencia OS son orientativas y no son datos verificados."
     )
+    market_codes = {
+        "Argentina": "AR",
+        "Brasil": "BR",
+        "Chile": "CL",
+        "Colombia": "CO",
+        "México": "MX",
+        "España": "ES",
+        "Estados Unidos": "US",
+    }
+    market = st.selectbox(
+        "Mercado de búsqueda",
+        list(market_codes),
+        key="competitor_public_search_market",
+    )
     comp = st.text_input(
-        "Marca o competidor",
+        "Marca, anunciante o palabra clave",
         placeholder="Ej.: Coto, Zara, Fravega...",
         key="spy_competitor",
     )
@@ -1834,7 +1856,7 @@ with t1:
             else:
                 meta_url = (
                     "https://www.facebook.com/ads/library/"
-                    "?active_status=active&ad_type=all&country=AR"
+                    f"?active_status=active&ad_type=all&country={market_codes[market]}"
                     "&is_targeted_country=false&media_type=all"
                     "&search_type=keyword_unordered"
                     "&sort_data[direction]=desc&sort_data[mode]=total_impressions&q="
@@ -2241,6 +2263,47 @@ with t1:
             ).casefold()
         ]
 
+        if filtered_observations:
+            with st.expander("Analizar una observación guardada", expanded=False):
+                analysis_labels = {
+                    item["id"]: (
+                        f'{item["brand"]} · {item["platform"]} · '
+                        f'{item["observed_on"]} · {item["headline"] or "Sin titular"}'
+                    )
+                    for item in filtered_observations
+                }
+                analysis_id = st.selectbox(
+                    "Observación a analizar",
+                    list(analysis_labels),
+                    format_func=lambda value: analysis_labels[value],
+                    key="competitor_analysis_selection",
+                )
+                if st.button(
+                    "ANALIZAR OBSERVACIÓN GUARDADA",
+                    key="spy_analyze_saved_observation",
+                    use_container_width=True,
+                ):
+                    record = next(
+                        item for item in filtered_observations
+                        if item["id"] == analysis_id
+                    )
+                    result = analyze_observation(record)
+                    st.session_state["spy_saved_observation_analysis"] = {
+                        "id": analysis_id,
+                        **result,
+                    }
+
+                result = st.session_state.get("spy_saved_observation_analysis", {})
+                if result.get("id") == analysis_id:
+                    st.caption(result.get("notice", ""))
+                    st.write("Gancho:", result.get("hook", "No indicado"))
+                    st.write("Propuesta:", result.get("proposition", "No indicada"))
+                    st.write("Oferta:", result.get("offer", "No indicada"))
+                    st.write(
+                        "Llamada a la acción:",
+                        result.get("call_to_action", "No indicada"),
+                    )
+
         display_rows = [
             {
                 "Marca": item["brand"],
@@ -2343,10 +2406,48 @@ with t2:
         ["cercano", "directo", "experto", "inspirador", "informal"],
         key="clone_tone",
     )
-    comp_clone = st.text_input(
-        "Marca de referencia (opcional; no se consulta automaticamente)",
-        key="clone_reference",
+    clone_saved_observations = list(
+        st.session_state.get("competitor_observations_v1", [])
     )
+    clone_reference_options = [
+        "Último anuncio analizado",
+        "Texto propio",
+        "Sin referencia",
+    ]
+    if clone_saved_observations:
+        clone_reference_options.insert(1, "Observación guardada")
+
+    clone_reference_mode = st.radio(
+        "Referencia para orientar la estructura",
+        clone_reference_options,
+        key="clone_reference_mode",
+        horizontal=True,
+    )
+
+    clone_reference_labels = {}
+    if clone_reference_mode == "Observación guardada":
+        clone_reference_labels = {
+            str(item.get("id") or index): (
+                f'{item.get("brand") or "Marca sin nombre"} · '
+                f'{item.get("platform") or "Sin plataforma"} · '
+                f'{item.get("headline") or "Sin titular"}'
+            )
+            for index, item in enumerate(clone_saved_observations)
+        }
+        st.selectbox(
+            "Observación de referencia",
+            list(clone_reference_labels),
+            format_func=lambda value: clone_reference_labels[value],
+            key="clone_reference_observation",
+        )
+
+    if clone_reference_mode == "Texto propio":
+        st.text_area(
+            "Descripción o estructura de tu referencia (opcional)",
+            key="clone_own_reference",
+            height=100,
+        )
+
     objective = st.selectbox(
         "Objetivo publicitario",
         ["Ventas", "Generar consultas", "Reconocimiento de marca"],
@@ -2359,23 +2460,42 @@ with t2:
         use_container_width=True,
         key="clone_v1_generate",
     ):
-        reference_text = str(
-            st.session_state.get("spy_ad_reference_text", "") or ""
-        ).strip()
-        reference_hook = str(
-            st.session_state.get("spy_ad_reference_hook", "") or ""
-        ).strip()
-        reference_cta = str(
-            st.session_state.get("spy_ad_reference_cta", "") or ""
-        ).strip()
-
         reference = None
-        if reference_text or reference_hook or reference_cta:
-            reference = {
-                "headline": reference_hook,
-                "text": reference_text,
-                "call_to_action": reference_cta,
-            }
+        if clone_reference_mode == "Último anuncio analizado":
+            reference_text = str(
+                st.session_state.get("spy_ad_reference_text", "") or ""
+            ).strip()
+            reference_hook = str(
+                st.session_state.get("spy_ad_reference_hook", "") or ""
+            ).strip()
+            reference_cta = str(
+                st.session_state.get("spy_ad_reference_cta", "") or ""
+            ).strip()
+            if reference_text or reference_hook or reference_cta:
+                reference = {
+                    "headline": reference_hook,
+                    "text": reference_text,
+                    "call_to_action": reference_cta,
+                }
+        elif clone_reference_mode == "Observación guardada":
+            selected_id = st.session_state.get("clone_reference_observation")
+            selected_record = next(
+                (
+                    item for index, item in enumerate(clone_saved_observations)
+                    if str(item.get("id") or index) == str(selected_id)
+                ),
+                None,
+            )
+            if selected_record:
+                reference = {
+                    "headline": selected_record.get("headline", ""),
+                    "text": selected_record.get("text", ""),
+                    "call_to_action": selected_record.get("call_to_action", ""),
+                }
+        elif clone_reference_mode == "Texto propio":
+            reference = str(
+                st.session_state.get("clone_own_reference", "") or ""
+            ).strip() or None
 
         engine_objective = {
             "Ventas": "Ventas",
@@ -2400,16 +2520,36 @@ with t2:
         else:
             st.session_state.pop("clone_v1_editor", None)
             st.session_state["clone_variations_v1"] = generated
-            if comp_clone.strip():
-                st.session_state["clone_reference_note"] = (
-                    "Generacion por reglas, no IA generativa. "
-                    "La marca ingresada no fue consultada ni verificada."
+            if clone_reference_mode == "Último anuncio analizado" and reference is None:
+                reference_note = (
+                    "No hay texto de anuncio analizado disponible; se generó sin referencia."
                 )
+            elif clone_reference_mode == "Observación guardada" and reference is None:
+                reference_note = (
+                    "No se pudo recuperar la observación elegida; se generó sin referencia."
+                )
+            elif clone_reference_mode == "Texto propio" and reference is None:
+                reference_note = (
+                    "No ingresaste texto de referencia; se generó sin referencia."
+                )
+            elif clone_reference_mode == "Último anuncio analizado":
+                reference_note = (
+                    "Se usó el texto analizado manualmente; el anunciante y las métricas no se verificaron."
+                )
+            elif clone_reference_mode == "Observación guardada":
+                reference_note = (
+                    "Se usó una observación guardada para orientar la estructura; no se copia literalmente."
+                )
+            elif clone_reference_mode == "Texto propio":
+                reference_note = "Se usó el texto de referencia que ingresaste."
             else:
-                st.session_state["clone_reference_note"] = (
-                    "Generacion por reglas, no IA generativa. "
-                    "Verifica las afirmaciones antes de publicar."
-                )
+                reference_note = "Las propuestas se generaron sin una referencia externa."
+
+            st.session_state["clone_reference_note"] = (
+                "Generación por reglas, no IA generativa. "
+                + reference_note
+                + " Verificá las afirmaciones antes de publicar."
+            )
 
     variations = st.session_state.get("clone_variations_v1", [])
     note = st.session_state.get("clone_reference_note", "")
