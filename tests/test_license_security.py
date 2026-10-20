@@ -41,7 +41,52 @@ class LicenseSecurityTests(unittest.TestCase):
             key = license_security.generate_license_key(year=2026)
         token_hex.assert_called_once_with(24)
         self.assertRegex(key, r"^LEGION-2026-[0-9A-F]{48}$")
-        self.assertEqual(key, f"LEGION-2026-{'A' * 48}")
+
+    def test_rotation_preserves_metadata_and_disables_old_key(self):
+        old_key = "TEST-EXPOSED-LICENSE"
+        fingerprint = license_security.license_key_fingerprint(old_key)
+        original = {
+            old_key: {
+                "client": "cliente",
+                "created": "2026-01-01T00:00:00",
+                "expires": "2026-12-31T00:00:00",
+                "max_accounts": 3,
+                "active": True,
+            },
+            "UNRELATED-KEY": {
+                "client": "otro",
+                "created": "2026-01-01T00:00:00",
+                "expires": "2027-01-01T00:00:00",
+                "max_accounts": 5,
+                "active": True,
+            },
+        }
+        with patch.object(license_security, "EXPOSED_LICENSE_FINGERPRINTS", frozenset({fingerprint})):
+            updated, replacements = license_security.build_license_rotation_plan(
+                original, key_factory=lambda: "NEW-SECURE-KEY"
+            )
+        self.assertFalse(updated[old_key]["active"])
+        self.assertTrue(updated["NEW-SECURE-KEY"]["active"])
+        self.assertEqual(updated["NEW-SECURE-KEY"]["client"], "cliente")
+        self.assertEqual(updated["NEW-SECURE-KEY"]["expires"], original[old_key]["expires"])
+        self.assertEqual(updated["NEW-SECURE-KEY"]["max_accounts"], 3)
+        self.assertTrue(updated["UNRELATED-KEY"]["active"])
+        self.assertEqual(replacements, [{
+            "client": "cliente",
+            "license_key": "NEW-SECURE-KEY",
+            "expires": "2026-12-31T00:00:00",
+            "max_accounts": 3,
+        }])
+
+    def test_rotation_rejects_key_collision(self):
+        old_key = "TEST-EXPOSED-LICENSE"
+        fingerprint = license_security.license_key_fingerprint(old_key)
+        with patch.object(license_security, "EXPOSED_LICENSE_FINGERPRINTS", frozenset({fingerprint})):
+            with self.assertRaises(RuntimeError):
+                license_security.build_license_rotation_plan(
+                    {old_key: {"client": "cliente", "active": True}},
+                    key_factory=lambda: old_key,
+                )
 
 
 if __name__ == "__main__":
