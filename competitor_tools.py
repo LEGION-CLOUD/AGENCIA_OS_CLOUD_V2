@@ -319,9 +319,9 @@ def generate_ad_variations(inputs, *, reference=None):
     required = (
         ("brand", "marca"),
         ("product", "producto o servicio"),
-        ("audience", "publico objetivo"),
+        ("audience", "p\u00fablico objetivo"),
         ("benefit", "beneficio principal"),
-        ("objective", "objetivo de campana"),
+        ("objective", "objetivo de campa\u00f1a"),
         ("tone", "tono"),
     )
     values = {
@@ -338,17 +338,19 @@ def generate_ad_variations(inputs, *, reference=None):
     def plain(value):
         value = str(value or "").casefold()
         return value.translate(
-            str.maketrans("???????", "aeiouun")
+            str.maketrans(
+                "\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00f1",
+                "aeiouun",
+            )
         )
 
     brand = values["brand"]
     product = values["product"]
     audience = values["audience"]
     benefit = values["benefit"].strip().rstrip(" .!?;:")
-    objective = values["objective"]
+    objective_plain = plain(values["objective"])
     tone = values["tone"].casefold()
 
-    # No convertir instrucciones de formulario en promociones publicitarias.
     offer = _text(inputs.get("offer"), "oferta", limit=500)
     offer_plain = plain(offer)
     placeholder_offer = (
@@ -357,7 +359,7 @@ def generate_ad_variations(inputs, *, reference=None):
             "no aplica", "n/a", "ninguna",
         }
         or offer_plain.startswith((
-            "dejar vac", "completar", "ingresar", "escribir",
+            "dejar vacio", "completar", "ingresar", "escribir",
             "sin oferta", "sin promocion", "solo si",
         ))
         or "si no hay una promocion vigente" in offer_plain
@@ -366,18 +368,19 @@ def generate_ad_variations(inputs, *, reference=None):
         offer = ""
 
     cta = {
-        "reconocimiento": "Conocer m?s",
-        "awareness": "Conocer m?s",
-        "tr?fico": "Ver producto",
+        "reconocimiento": "Conocer m\u00e1s",
+        "reconocimiento de marca": "Conocer m\u00e1s",
+        "awareness": "Conocer m\u00e1s",
+        "trafico": "Ver producto",
         "traffic": "Ver producto",
-        "leads": "Solicitar informaci?n",
-        "generar consultas": "Solicitar informaci?n",
-        "clientes potenciales": "Solicitar informaci?n",
-        "consultas": "Solicitar informaci?n",
-        "conversi?n": "Ver opciones",
+        "leads": "Solicitar informaci\u00f3n",
+        "generar consultas": "Solicitar informaci\u00f3n",
+        "clientes potenciales": "Solicitar informaci\u00f3n",
+        "consultas": "Solicitar informaci\u00f3n",
+        "conversion": "Ver opciones",
         "conversiones": "Ver opciones",
         "ventas": "Ver opciones",
-    }.get(objective.casefold(), "Conocer m?s")
+    }.get(objective_plain, "Conocer m\u00e1s")
 
     product_lower = product[0].lower() + product[1:]
     product_plain = plain(product)
@@ -397,69 +400,84 @@ def generate_ad_variations(inputs, *, reference=None):
     else:
         service_action = product_phrase
 
-    # Convertir beneficios nominales frecuentes en frases naturales.
     benefit_plain = plain(benefit)
     if benefit_plain.startswith((
         "instalacion coordinada",
         "coordinacion de la instalacion",
     )):
         benefit_sentence = (
-            "Coordinamos la instalaci?n seg?n las necesidades del cliente."
+            "Coordinamos la instalaci\u00f3n "
+            "seg\u00fan las necesidades del cliente."
         )
     elif benefit_plain.startswith("atencion personalizada"):
-        benefit_sentence = "Ofrecemos atenci?n personalizada."
+        benefit_sentence = "Ofrecemos atenci\u00f3n personalizada."
     elif benefit_plain.startswith("prendas faciles de combinar"):
-        benefit_sentence = "Encontr? prendas f?ciles de combinar."
-    elif benefit_plain.startswith(("ofrecemos ", "brindamos ", "coordinamos ")):
-        benefit_sentence = benefit[0].upper() + benefit[1:] + "."
-        benefit_sentence = benefit_sentence.replace("..", ".")
+        benefit_sentence = "Encontr\u00e1 prendas f\u00e1ciles de combinar."
+    elif benefit_plain.startswith((
+        "ofrecemos ", "brindamos ", "coordinamos ",
+    )):
+        benefit_sentence = benefit[0].upper() + benefit[1:]
+        benefit_sentence = benefit_sentence.rstrip(".") + "."
     else:
         benefit_lower = benefit[0].lower() + benefit[1:]
         benefit_sentence = f"Beneficio destacado: {benefit_lower}."
 
-    reference_kind = _reference_kind(reference)
     structure = _reference_structure(reference)
+    reference_kind = _reference_kind(reference)
 
     if reference_kind == "promocional":
-        hook_1 = f"Consult? por {product_phrase} en {brand}."
+        hook_1 = f"Consult\u00e1 por {product_phrase} en {brand}."
     elif tone == "directo":
-        hook_1 = f"Consult? por {product_phrase}."
+        hook_1 = f"Consult\u00e1 por {product_phrase}."
     elif tone == "experto":
-        hook_1 = f"Antes de decidir, consult? las condiciones de {product_phrase}."
+        hook_1 = (
+            f"Antes de decidir, consult\u00e1 las condiciones "
+            f"de {product_phrase}."
+        )
     elif tone == "inspirador":
-        hook_1 = f"Encontr? una opci?n de {product_lower} que se adapte a vos."
+        hook_1 = (
+            f"Encontr\u00e1 una opci\u00f3n de {product_lower} "
+            "que se adapte a vos."
+        )
     elif tone == "informal":
-        hook_1 = f"?Lo ten?s pendiente? Consult? por {product_phrase}."
+        hook_1 = (
+            f"\u00bfLo ten\u00e9s pendiente? "
+            f"Consult\u00e1 por {product_phrase}."
+        )
     else:
-        hook_1 = f"?Necesit?s {service_action}?"
+        hook_1 = f"\u00bfNecesit\u00e1s {service_action}?"
 
     primary_text_1 = (
-        f"En {brand}, pod?s consultar por {product_phrase}. "
+        f"En {brand}, pod\u00e9s consultar por {product_phrase}. "
         f"{benefit_sentence} "
         "Escribinos para conocer disponibilidad y condiciones."
     )
 
     if offer:
         angle_3 = "Oferta"
-        hook_3 = f"Conoc? la propuesta de {brand}."
+        hook_3 = f"Conoc\u00e9 la propuesta de {brand}."
         headline_3 = f"Una propuesta para {product_lower}"
         primary_text_3 = (
-            f"Conoc? la propuesta de {brand}: {offer}. "
-            "Consult? las condiciones y la vigencia antes de contratar."
+            f"Conoc\u00e9 la propuesta de {brand}: {offer}. "
+            "Consult\u00e1 las condiciones y la vigencia antes de contratar."
         )
         cta_3 = "Consultar condiciones"
         video_text_3 = offer
     else:
-        angle_3 = "Informaci?n y condiciones"
-        hook_3 = f"?Quer?s consultar la disponibilidad de {product_phrase}?"
-        headline_3 = f"Disponibilidad y condiciones"
+        angle_3 = "Informaci\u00f3n y condiciones"
+        hook_3 = (
+            f"\u00bfQuer\u00e9s consultar la disponibilidad "
+            f"de {product_phrase}?"
+        )
+        headline_3 = "Disponibilidad y condiciones"
         primary_text_3 = (
-            f"Contact? a {brand} para consultar la disponibilidad y las "
-            f"condiciones de {product_phrase}. "
-            "Contanos qu? necesit?s para recibir informaci?n sobre tu caso."
+            f"Contact\u00e1 a {brand} para consultar la disponibilidad "
+            f"y las condiciones de {product_phrase}. "
+            "Contanos qu\u00e9 necesit\u00e1s para recibir "
+            "informaci\u00f3n sobre tu caso."
         )
         cta_3 = cta
-        video_text_3 = "Consult? disponibilidad y condiciones"
+        video_text_3 = "Consult\u00e1 disponibilidad y condiciones"
 
     return [
         {
@@ -470,24 +488,28 @@ def generate_ad_variations(inputs, *, reference=None):
             "cta": cta,
             "video_script": (
                 f"Escena 1: mostrar {product_lower} en contexto. "
-                f"Locuci?n: {hook_1} {benefit_sentence} "
+                f"Locuci\u00f3n: {hook_1} {benefit_sentence} "
                 f"Cierre: {brand} | {cta}."
             ),
             "reference_structure": structure,
         },
         {
             "angle": "Resolver dudas",
-            "hook": f"Antes de elegir, conoc? los detalles de {product_phrase}.",
-            "headline": f"Informaci?n sobre {product_lower}",
+            "hook": (
+                f"Antes de elegir, conoc\u00e9 los detalles "
+                f"de {product_phrase}."
+            ),
+            "headline": f"Informaci\u00f3n sobre {product_lower}",
             "primary_text": (
-                f"Para {audience_lower}, en {brand} pod?s consultar por "
-                f"{product_phrase}, su disponibilidad y sus condiciones. "
-                "Contanos qu? necesit?s para orientarte."
+                f"Para {audience_lower}, en {brand} pod\u00e9s consultar "
+                f"por {product_phrase}, su disponibilidad y sus condiciones. "
+                "Contanos qu\u00e9 necesit\u00e1s para orientarte."
             ),
             "cta": cta,
             "video_script": (
                 f"Escena 1: mostrar {product_lower}. "
-                "Texto en pantalla: Consult? disponibilidad y condiciones. "
+                "Texto en pantalla: Consult\u00e1 disponibilidad "
+                "y condiciones. "
                 f"Cierre: {brand} | {cta}."
             ),
             "reference_structure": structure,
