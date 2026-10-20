@@ -38,3 +38,40 @@ def generate_license_key(year=None):
     """Generate a high-entropy key that is safe to normalize to uppercase."""
     year = int(year or datetime.now().year)
     return f"LEGION-{year}-{secrets.token_hex(24).upper()}"
+
+
+def build_license_rotation_plan(licenses, key_factory=generate_license_key):
+    """Prepare replacement keys while retaining license metadata.
+
+    The caller persists the returned mapping in one database request. Old keys
+    are disabled in the same write; new keys retain the client's existing
+    expiry and account limit. This function does not persist or print secrets.
+    """
+    updated = {key: dict(record) for key, record in (licenses or {}).items()}
+    exposed = find_exposed_license_keys(updated)
+    replacements = []
+    reserved = set(updated)
+
+    for old_key, old_record in exposed.items():
+        new_key = None
+        for _ in range(5):
+            candidate = str(key_factory()).strip().upper()
+            if candidate and candidate not in reserved:
+                new_key = candidate
+                break
+        if new_key is None:
+            raise RuntimeError("No se pudo generar una clave nueva y única.")
+
+        reserved.add(new_key)
+        updated[old_key]["active"] = False
+        new_record = dict(old_record)
+        new_record["active"] = True
+        updated[new_key] = new_record
+        replacements.append({
+            "client": new_record.get("client", ""),
+            "license_key": new_key,
+            "expires": new_record.get("expires"),
+            "max_accounts": new_record.get("max_accounts"),
+        })
+
+    return updated, replacements
