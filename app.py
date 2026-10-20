@@ -44,6 +44,10 @@ from competitor_store import (
     tenant_id_for_license,
 )
 from ad_copy import generate_ad_proposals
+from license_security import (
+    build_license_rotation_plan,
+    find_exposed_license_keys,
+)
 from competitor_tools import (
     generate_ad_variations,
     export_variations_csv,
@@ -1052,6 +1056,59 @@ if is_admin:
     pwd=st.text_input("Contraseña",type="password")
     if pwd==ADMIN_PASSWORD:
         licenses=load_licenses()
+        exposed_licenses = find_exposed_license_keys(licenses)
+        if exposed_licenses:
+            st.warning(
+                "Se detectaron claves que estuvieron expuestas en el historial "
+                "público del repositorio. Rotarlas desactiva las claves antiguas."
+            )
+            st.write(
+                "Clientes afectados: "
+                + ", ".join(sorted({
+                    str(record.get("client", "sin nombre"))
+                    for record in exposed_licenses.values()
+                }))
+            )
+            confirm_rotation = st.checkbox(
+                "Confirmo rotar las claves expuestas y desactivar las anteriores",
+                key="confirm_exposed_license_rotation",
+            )
+            if st.button(
+                "ROTAR CLAVES EXPUESTAS",
+                type="primary",
+                disabled=not confirm_rotation,
+                use_container_width=True,
+            ):
+                try:
+                    updated_licenses, replacements = build_license_rotation_plan(licenses)
+                    if not replacements:
+                        st.info("No hay claves expuestas para rotar.")
+                    else:
+                        save_licenses(updated_licenses)
+                        st.session_state["license_rotation_results"] = replacements
+                        licenses = updated_licenses
+                        st.success(
+                            f"Rotación guardada: {len(replacements)} clave(s) nueva(s). "
+                            "Las claves anteriores quedaron desactivadas."
+                        )
+                        st.rerun()
+                except Exception as exc:
+                    st.error(f"No se pudo completar la rotación: {exc}")
+
+        rotation_results = st.session_state.get("license_rotation_results", [])
+        if rotation_results:
+            st.markdown("### Claves nuevas — guardar ahora")
+            st.warning(
+                "Copiá las claves nuevas y entregalas a cada cliente por un canal privado. "
+                "Se muestran únicamente en el panel administrativo."
+            )
+            for item in rotation_results:
+                st.markdown(f"**Cliente:** {item['client']} · **Vence:** {item['expires']}")
+                st.code(item["license_key"])
+            if st.button("Ocultar claves nuevas de esta sesión", use_container_width=True):
+                st.session_state.pop("license_rotation_results", None)
+                st.rerun()
+
         c1,c2,c3=st.columns(3)
         with c1: cname=st.text_input("Cliente","Nuevo")
         with c2: days=st.number_input("Días",value=90)
