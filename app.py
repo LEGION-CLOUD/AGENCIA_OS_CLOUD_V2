@@ -48,6 +48,8 @@ from competitor_tools import (
     generate_ad_variations,
     export_variations_csv,
     export_variations_txt,
+    export_observations_csv,
+    import_observations_json,
 )
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
@@ -744,6 +746,10 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "spy_observation_destination",
     "spy_observation_notes",
     "spy_retry_unsaved_observations",
+    "spy_import_observations_json",
+    "spy_import_observations_submit",
+    "spy_export_observations_json",
+    "spy_export_observations_csv",
     "spy_competitor",
     "spy_competitor_2",
     "spy_last_comp",
@@ -2114,6 +2120,75 @@ with t1:
                     st.success("Observación guardada en la sesión y en la nube.")
                     st.rerun()
 
+    with st.expander("Importar observaciones desde JSON", expanded=False):
+        st.caption(
+            "Restaura observaciones desde un respaldo JSON. "
+            "Los registros se guardan bajo la licencia actualmente activa."
+        )
+        uploaded_observations = st.file_uploader(
+            "Archivo de respaldo JSON",
+            type=["json"],
+            key="spy_import_observations_json",
+        )
+        can_import = bool(
+            competitor_storage_ready and uploaded_observations is not None
+        )
+        if st.button(
+            "IMPORTAR Y GUARDAR OBSERVACIONES",
+            key="spy_import_observations_submit",
+            disabled=not can_import,
+            use_container_width=True,
+        ):
+            try:
+                imported_records = import_observations_json(
+                    uploaded_observations.getvalue()
+                )
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                existing_records = list(
+                    st.session_state.get("competitor_observations_v1", [])
+                )
+                merged_records = {
+                    str(item.get("id") or ""): dict(item)
+                    for item in existing_records
+                }
+                for item in imported_records:
+                    merged_records[str(item.get("id") or "")] = item
+                candidate_records = list(merged_records.values())
+
+                try:
+                    save_observations(
+                        SUPABASE_URL,
+                        SUPABASE_SECRET_KEY,
+                        tenant_id,
+                        candidate_records,
+                    )
+                except CompetitorStoreError as exc:
+                    st.session_state["competitor_observations_v1"] = (
+                        candidate_records
+                    )
+                    st.session_state[
+                        "competitor_observations_unsaved_v1"
+                    ] = True
+                    st.error(f"No se confirmo el guardado en Supabase: {exc}")
+                    st.warning(
+                        "Los registros importados quedan en esta sesion. "
+                        "Descarga un respaldo y reintenta el guardado."
+                    )
+                else:
+                    st.session_state["competitor_observations_v1"] = (
+                        candidate_records
+                    )
+                    st.session_state[
+                        "competitor_observations_unsaved_v1"
+                    ] = False
+                    st.success(
+                        f"Importacion guardada: {len(imported_records)} "
+                        "observaciones procesadas."
+                    )
+                    st.rerun()
+
     saved_observations = st.session_state.get("competitor_observations_v1", [])
     if st.session_state.get("competitor_observations_unsaved_v1") and competitor_storage_ready:
         if st.button(
@@ -2141,6 +2216,14 @@ with t1:
             file_name="observaciones_competidores.json",
             mime="application/json",
             key="spy_export_observations_json",
+        )
+
+        st.download_button(
+            "Descargar observaciones CSV",
+            data=export_observations_csv(saved_observations),
+            file_name="observaciones_competidores.csv",
+            mime="text/csv",
+            key="spy_export_observations_csv",
         )
 
         filter_query = st.text_input(
