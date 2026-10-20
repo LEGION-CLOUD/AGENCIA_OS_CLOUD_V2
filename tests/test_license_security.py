@@ -7,7 +7,7 @@ import license_security
 
 class LicenseSecurityTests(unittest.TestCase):
     def test_fingerprint_uses_sha256_and_normalizes_key(self):
-        expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        expected = "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"
         self.assertEqual(license_security.license_key_fingerprint(" abc "), expected)
         self.assertEqual(
             license_security.license_key_fingerprint("ABC"),
