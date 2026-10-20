@@ -201,14 +201,14 @@ class AdVariationTests(unittest.TestCase):
     def test_empty_offer_does_not_invent_discount_or_social_proof(self):
         for offer in (
             "",
-            "Dejar vac?o si no hay una promoci?n vigente",
+            "Dejar vac\u00edo si no hay una promoci\u00f3n vigente",
             "No aplica",
         ):
             with self.subTest(offer=offer):
                 variations = generate_ad_variations(self.inputs(offer=offer))
                 self.assertEqual(
                     variations[2]["angle"],
-                    "Informaci?n y condiciones",
+                    "Informaci\u00f3n y condiciones",
                 )
                 combined = " ".join(
                     str(value)
@@ -216,9 +216,10 @@ class AdVariationTests(unittest.TestCase):
                     for value in variation.values()
                 ).casefold()
                 for forbidden in (
-                    "descuento", "2x1", "testimonio", "rese?a",
-                    "prueba social", "dejar vac?o", "dejar vacio",
-                    "promoci?n vigente", "promocion vigente",
+                    "descuento", "2x1", "testimonio",
+                    "rese\u00f1a", "prueba social",
+                    "dejar vac\u00edo", "dejar vacio",
+                    "promoci\u00f3n vigente", "promocion vigente",
                 ):
                     self.assertNotIn(forbidden, combined)
     def test_variations_can_be_edited_then_exported_as_csv_and_txt(self):
@@ -230,6 +231,15 @@ class AdVariationTests(unittest.TestCase):
         self.assertIn("Titular: Titular editado", text)
         self.assertEqual(len(csv_rows), 3)
         self.assertIn("VARIACIÓN 3", text)
+
+    def test_generated_copy_preserves_spanish_accents(self):
+        rendered = export_variations_txt(
+            generate_ad_variations(self.inputs(offer=""))
+        )
+        self.assertIn("Informaci\u00f3n y condiciones", rendered)
+        self.assertIn("Consult\u00e1", rendered)
+        self.assertNotIn("Informaci?n", rendered)
+        self.assertNotIn("Consult?", rendered)
 
     def test_generated_copy_does_not_contain_performance_metrics_or_claims(self):
         variations = generate_ad_variations(self.inputs())
