@@ -30,7 +30,7 @@ def find_exposed_license_keys(licenses):
     return {
         key: record
         for key, record in (licenses or {}).items()
-        if is_exposed_license_key(key)
+        if record.get("active", True) and is_exposed_license_key(key)
     }
 
 
