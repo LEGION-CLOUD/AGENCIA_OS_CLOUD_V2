@@ -1,0 +1,22 @@
+name: Temporary creative generator regression check
+
+on:
+  push:
+    branches:
+      - fix/creative-reference-originality-20261020
+
+permissions:
+  contents: read
+
+jobs:
+  test-creative-generator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run competitor and creative generator tests
+        run: python -m unittest discover -s tests -p "test_competitor_tools.py" -v
