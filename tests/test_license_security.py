@@ -29,6 +29,45 @@ class LicenseSecurityTests(unittest.TestCase):
             })
         self.assertEqual(list(matches), [fixture_key])
 
+    def test_inactive_exposed_keys_are_not_scheduled_for_rotation_again(self):
+        fixture_key = "TEST-EXPOSED-LICENSE"
+        fingerprint = license_security.license_key_fingerprint(fixture_key)
+        licenses = {
+            fixture_key: {"client": "cliente", "active": False},
+            "OTHER-EXPOSED-KEY": {"client": "otro", "active": True},
+        }
+        other_fingerprint = license_security.license_key_fingerprint("OTHER-EXPOSED-KEY")
+        with patch.object(
+            license_security,
+            "EXPOSED_LICENSE_FINGERPRINTS",
+            frozenset({fingerprint}),
+        ):
+            found = license_security.find_exposed_license_keys(licenses)
+            updated, replacements = license_security.build_license_rotation_plan(
+                licenses, key_factory=lambda: "NEW-KEY"
+            )
+        self.assertEqual(found, {})
+        self.assertEqual(replacements, [])
+        self.assertEqual(updated, licenses)
+
+    def test_active_exposed_key_is_found_but_inactive_key_is_ignored(self):
+        old_active = "TEST-EXPOSED-LICENSE-ACTIVE"
+        old_inactive = "TEST-EXPOSED-LICENSE-INACTIVE"
+        fingerprints = {
+            license_security.license_key_fingerprint(old_active),
+            license_security.license_key_fingerprint(old_inactive),
+        }
+        with patch.object(
+            license_security,
+            "EXPOSED_LICENSE_FINGERPRINTS",
+            frozenset(fingerprints),
+        ):
+            found = license_security.find_exposed_license_keys({
+                old_active: {"active": True},
+                old_inactive: {"active": False},
+            })
+        self.assertEqual(list(found), [old_active])
+
     def test_known_exposure_fingerprints_are_sha256_hashes(self):
         self.assertEqual(len(license_security.EXPOSED_LICENSE_FINGERPRINTS), 2)
         self.assertTrue(
