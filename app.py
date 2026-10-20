@@ -44,6 +44,11 @@ from competitor_store import (
     tenant_id_for_license,
 )
 from ad_copy import generate_ad_proposals
+from competitor_tools import (
+    generate_ad_variations,
+    export_variations_csv,
+    export_variations_txt,
+)
 
 st.set_page_config(page_title="AGENCIA OS", page_icon="🚀", layout="wide")
 st.markdown(
@@ -753,6 +758,15 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "spy_ad_reference_cta",
     "spy_ad_reference_offer",
     "spy_ad_reference_benefits",
+    "clone_brand",
+    "clone_audience",
+    "clone_tone",
+    "clone_variations_v1",
+    "clone_v1_editor",
+    "clone_v1_generate",
+    "clone_v1_download_csv",
+    "clone_v1_download_txt",
+    "clone_legacy_generate",
     "clone_offer",
     "clone_benefits",
     "clone_promo",
@@ -2212,83 +2226,198 @@ with t1:
 with t2:
     st.subheader("Clonador creativo")
     st.caption(
-        "Crea propuestas originales para tu oferta. La marca de referencia no se consulta "
-        "automaticamente y sus anuncios no se copian."
+        "Genera propuestas originales con los datos de tu marca. "
+        "La referencia orienta la estructura; no se copian sus anuncios."
+    )
+
+    brand = st.text_input(
+        "Tu marca",
+        placeholder="Ej.: Herreria Juan",
+        key="clone_brand",
     )
     desc = st.text_input(
-        "Tu producto, servicio u oferta",
-        placeholder="Ej.: servicio de instalacion de aire acondicionado",
+        "Producto o servicio",
+        placeholder="Ej.: instalacion de aire acondicionado",
         key="clone_offer",
     )
+    audience = st.text_input(
+        "Publico objetivo",
+        placeholder="Ej.: hogares que necesitan climatizacion",
+        key="clone_audience",
+    )
     benefits = st.text_input(
-        "Beneficios reales (opcional)",
-        placeholder="Ej.: atencion personalizada, instalacion incluida",
+        "Beneficio principal real",
+        placeholder="Ej.: instalacion coordinada a domicilio",
         key="clone_benefits",
     )
     promo = st.text_input(
-        "Promocion y condiciones reales (opcional)",
-        placeholder="Ej.: 10% hasta el viernes, sujeto a condiciones",
+        "Oferta y condiciones reales (opcional)",
+        placeholder="Indica solo condiciones que realmente ofreces",
         key="clone_promo",
     )
+    tone = st.selectbox(
+        "Tono",
+        ["cercano", "directo", "experto", "inspirador", "informal"],
+        key="clone_tone",
+    )
     comp_clone = st.text_input(
-        "Marca de referencia (opcional)",
-        placeholder="Ej.: una marca competidora",
+        "Marca de referencia (opcional; no se consulta automaticamente)",
         key="clone_reference",
     )
     objective = st.selectbox(
-        "Objetivo de la publicidad",
+        "Objetivo publicitario",
         ["Ventas", "Generar consultas", "Reconocimiento de marca"],
         key="clone_objective",
     )
 
-    if st.button("GENERAR 3 PROPUESTAS", type="primary", use_container_width=True):
-        if not desc.strip():
-            st.warning("Describe tu producto, servicio u oferta.")
+    if st.button(
+        "GENERAR 3 VARIACIONES EDITABLES",
+        type="primary",
+        use_container_width=True,
+        key="clone_v1_generate",
+    ):
+        reference_text = str(
+            st.session_state.get("spy_ad_reference_text", "") or ""
+        ).strip()
+        reference_hook = str(
+            st.session_state.get("spy_ad_reference_hook", "") or ""
+        ).strip()
+        reference_cta = str(
+            st.session_state.get("spy_ad_reference_cta", "") or ""
+        ).strip()
+
+        reference = None
+        if reference_text or reference_hook or reference_cta:
+            reference = {
+                "headline": reference_hook,
+                "text": reference_text,
+                "call_to_action": reference_cta,
+            }
+
+        engine_objective = {
+            "Ventas": "Ventas",
+            "Generar consultas": "Leads",
+            "Reconocimiento de marca": "Reconocimiento",
+        }[objective]
+
+        inputs = {
+            "brand": brand,
+            "product": desc,
+            "audience": audience,
+            "benefit": benefits,
+            "objective": engine_objective,
+            "tone": tone,
+            "offer": promo,
+        }
+
+        try:
+            generated = generate_ad_variations(inputs, reference=reference)
+        except ValueError as exc:
+            st.warning(str(exc))
         else:
-            benefits_text = benefits.strip().rstrip(".")
-            promo_text = promo.strip().rstrip(".")
-            reference_text = st.session_state.get("spy_ad_reference_text", "").strip()
-            reference_hook = st.session_state.get("spy_ad_reference_hook", "").strip()
-            reference_brand = comp_clone.strip()
-
-            proposals = generate_ad_proposals(
-                desc,
-                benefits_text,
-                promo_text,
-                objective,
-            )
-
-            st.session_state["clone_res"] = proposals
-            if reference_text:
+            st.session_state.pop("clone_v1_editor", None)
+            st.session_state["clone_variations_v1"] = generated
+            if comp_clone.strip():
                 st.session_state["clone_reference_note"] = (
-                    "Texto de referencia aportado manualmente. Gancho detectado: "
-                    + (reference_hook or "no disponible") + ". "
-                    + "Anunciante, enlace y métricas no verificados. "
-                    + "Generación por reglas, no IA generativa."
-                )
-            elif reference_brand:
-                st.session_state["clone_reference_note"] = (
-                    f"Marca ingresada: {reference_brand}. No fue consultada ni verificada. "
-                    "Generación por reglas, no IA generativa."
+                    "Generacion por reglas, no IA generativa. "
+                    "La marca ingresada no fue consultada ni verificada."
                 )
             else:
-                if benefits_text or promo_text:
-                    st.session_state["clone_reference_note"] = (
-                        "Generación por reglas, no IA generativa. "
-                        "Se incluyeron los beneficios y/o la promoción que ingresaste; "
-                        "no se verificaron de forma independiente."
-                    )
-                else:
-                    st.session_state["clone_reference_note"] = (
-                        "Generación por reglas, no IA generativa. "
-                        "Sin beneficios ni promociones aportados, se usan textos generales."
-                    )
+                st.session_state["clone_reference_note"] = (
+                    "Generacion por reglas, no IA generativa. "
+                    "Verifica las afirmaciones antes de publicar."
+                )
 
-    if "clone_res" in st.session_state:
-        note = st.session_state.get("clone_reference_note", "")
+    variations = st.session_state.get("clone_variations_v1", [])
+    note = st.session_state.get("clone_reference_note", "")
+
+    if variations:
         if note:
             st.info(note)
 
-        for proposal in st.session_state["clone_res"]:
-            with st.container(border=True):
-                st.code(proposal, language=None)
+        editable_fields = [
+            "angle",
+            "hook",
+            "headline",
+            "primary_text",
+            "cta",
+            "video_script",
+        ]
+        editor_data = pd.DataFrame(
+            [
+                {
+                    field: str(variation.get(field, ""))
+                    for field in editable_fields
+                }
+                for variation in variations
+            ],
+            columns=editable_fields,
+        )
+
+        st.caption(
+            "Edita las celdas de la tabla. Los cambios se incluyen en las descargas."
+        )
+        edited_table = st.data_editor(
+            editor_data,
+            key="clone_v1_editor",
+            num_rows="fixed",
+            hide_index=True,
+            use_container_width=True,
+        )
+
+        edited_rows = edited_table.to_dict(orient="records")
+        edited_variations = []
+        for original, edits in zip(variations, edited_rows):
+            item = dict(original)
+            for field in editable_fields:
+                item[field] = str(edits.get(field, "") or "")
+            edited_variations.append(item)
+
+        st.session_state["clone_variations_v1"] = edited_variations
+
+        with st.expander("Ver criterio de referencia"):
+            for index, item in enumerate(edited_variations, start=1):
+                st.markdown(f"**Propuesta {index}**")
+                st.write(item.get("reference_structure", "Sin referencia disponible."))
+
+        col_csv, col_txt = st.columns(2)
+        with col_csv:
+            st.download_button(
+                "DESCARGAR CSV",
+                data=export_variations_csv(edited_variations),
+                file_name="agencia_os_variaciones.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="clone_v1_download_csv",
+            )
+        with col_txt:
+            st.download_button(
+                "DESCARGAR TXT",
+                data=export_variations_txt(edited_variations),
+                file_name="agencia_os_variaciones.txt",
+                mime="text/plain",
+                use_container_width=True,
+                key="clone_v1_download_txt",
+            )
+
+    with st.expander("Generador clasico (alternativa)"):
+        if st.button("GENERAR PROPUESTAS CLASICAS", key="clone_legacy_generate"):
+            if not desc.strip():
+                st.warning("Describe tu producto o servicio.")
+            else:
+                try:
+                    proposals = generate_ad_proposals(
+                        desc,
+                        benefits.strip().rstrip("."),
+                        promo.strip().rstrip("."),
+                        objective,
+                    )
+                except ValueError as exc:
+                    st.warning(str(exc))
+                else:
+                    st.session_state["clone_res"] = proposals
+
+        if "clone_res" in st.session_state:
+            for proposal in st.session_state["clone_res"]:
+                with st.container(border=True):
+                    st.code(proposal, language=None)
