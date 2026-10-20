@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-import os, json, random, string, hashlib
+import os, json, hashlib
 import uuid
 from urllib.parse import quote_plus
 import unicodedata
@@ -47,6 +47,7 @@ from ad_copy import generate_ad_proposals
 from license_security import (
     build_license_rotation_plan,
     find_exposed_license_keys,
+    generate_license_key,
 )
 from competitor_tools import (
     generate_ad_variations,
@@ -693,9 +694,6 @@ def delete_license(license_key):
         st.stop()
 
 
-def generate_key(name):
-    rand=''.join(random.choices(string.ascii_uppercase+string.digits,k=4))
-    return f"LEGION-{rand}-{datetime.now().year}-{name[:4].upper()}"
 def validate_license(key, licenses):
     key=key.strip().upper()
     if key not in licenses: return False,"No existe"
@@ -839,7 +837,7 @@ def coincide_termino(texto, termino):
 def analisis_real_diferenciado(competidor):
     nombre = competidor.strip()
     if not nombre:
-        return "Escribi una marca para generar propuestas."
+        return "Escribí una marca para generar propuestas."
 
     comp_lower = "".join(
         caracter
@@ -1114,7 +1112,7 @@ if is_admin:
         with c2: days=st.number_input("Días",value=90)
         with c3: max_acc=st.number_input("Max",value=5)
         if st.button("GENERAR",type="primary",use_container_width=True):
-            new_key=generate_key(cname)
+            new_key=generate_license_key()
             exp=datetime.now()+timedelta(days=days)
             licenses[new_key]={"client":cname,"created":datetime.now().isoformat(),"expires":exp.isoformat(),"max_accounts":max_acc,"active":True}
             save_licenses(licenses)
@@ -1808,7 +1806,7 @@ else:
     roas_display = "\u2014"
     campanas_display = "\u2014"
 
-k1.metric("Gasto", gasto_display, help="Inversi?n de los informes consolidados")
+k1.metric("Gasto", gasto_display, help="Inversión de los informes consolidados")
 k2.metric("ROAS", roas_display, help="Retorno publicitario de los informes consolidados")
 k3.metric("Campa\u00f1as", campanas_display, help="Registros incluidos en el informe consolidado")
 
@@ -1820,7 +1818,7 @@ if df_all is not None:
         .sort_values(ascending=False)
     )
     if len(spend_by_platform) > 1:
-        st.markdown("#### Inversi?n por plataforma")
+        st.markdown("#### Inversión por plataforma")
         st.bar_chart(spend_by_platform, height=240)
     st.markdown("#### Rendimiento consolidado")
     st.dataframe(df_all, width="stretch", hide_index=True)
@@ -1877,7 +1875,7 @@ with t1:
 
     st.subheader("Espía de competidores")
     st.caption(
-        "Busca anuncios publicos en la Biblioteca de Meta. "
+        "Buscá anuncios públicos en la Biblioteca de Meta. "
         "Las ideas generadas por Agencia OS son orientativas y no son datos verificados."
     )
     market_codes = {
@@ -1909,7 +1907,7 @@ with t1:
     with c1:
         if st.button("BUSCAR ANUNCIOS PUBLICOS", type="primary", use_container_width=True):
             if not comp.strip():
-                st.warning("Escribi una marca para buscar.")
+                st.warning("Escribí una marca para buscar.")
             else:
                 meta_url = (
                     "https://www.facebook.com/ads/library/"
@@ -1925,7 +1923,7 @@ with t1:
     with c2:
         if st.button("GENERAR HIPOTESIS", use_container_width=True):
             if not comp.strip():
-                st.warning("Escribi una marca para generar hipotesis.")
+                st.warning("Escribí una marca para generar hipótesis.")
             else:
                 st.session_state["spy_res"] = analisis_real_diferenciado(comp.strip())
                 st.session_state["spy_res_brand"] = comp.strip()
@@ -1945,7 +1943,7 @@ with t1:
         if not comp.strip() or not comp2.strip():
             st.warning("Completa las dos marcas para compararlas.")
         elif comp.strip().casefold() == comp2.strip().casefold():
-            st.warning("Eleg? dos marcas diferentes.")
+            st.warning("Elegí dos marcas diferentes.")
         else:
             st.session_state["spy_res"] = (
                 analisis_real_diferenciado(comp.strip())
@@ -1956,7 +1954,7 @@ with t1:
 
     st.markdown("#### Analizar un anuncio real")
     st.caption(
-        "Pega el texto que ves en el anuncio. El analisis utiliza el contenido "
+        "Pegá el texto que ves en el anuncio. El análisis utiliza el contenido "
         "aportado manualmente; no verifica el enlace, el anunciante ni las metricas."
     )
     spy_ad_url = st.text_input(
@@ -2008,7 +2006,7 @@ with t1:
             has_offer_signals = any(
                 marker in normalized for marker in ("$", "%", "ars", "usd", "2x1", "descuento", "promocion", "oferta")
             )
-            has_question = "?" in ad_text or "?" in ad_text
+            has_question = "¿" in ad_text or "?" in ad_text
             has_urgency = any(
                 term in normalized for term in (
                     "por tiempo limitado", "ultimos dias", "solo hoy",
