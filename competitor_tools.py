@@ -261,6 +261,7 @@ def export_observations_csv(observations):
     return output.getvalue()
 
 
+
 def _reference_kind(reference):
     if isinstance(reference, dict):
         source = " ".join(
@@ -270,27 +271,25 @@ def _reference_kind(reference):
     else:
         source = str(reference or "")
 
-    source = source.casefold().strip()
-    if not source:
-        return "ninguna"
-
+    source = source.casefold().strip().translate(
+        str.maketrans("\u00e1\u00e9\u00ed\u00f3\u00fa\u00fc\u00f1", "aeiouun")
+    )
     if (
         "?" in source
-        or "?" in source
+        or "\u00bf" in source
         or any(word in source for word in (
-            "c?mo", "por qu?", "sab?as", "busc?s", "necesit?s"
+            "como", "por que", "sabias", "buscas", "necesitas"
         ))
     ):
         return "pregunta"
 
     if any(word in source for word in (
-        "ahorr", "oferta", "descuento", "promoci?n",
-        "promocion", "promo", "rebaja", "2x1"
+        "ahorr", "oferta", "descuento", "promocion",
+        "promo", "rebaja", "2x1"
     )):
         return "promocional"
 
     return "descriptiva"
-
 
 def _reference_structure(reference):
     kind = _reference_kind(reference)
@@ -301,17 +300,15 @@ def _reference_structure(reference):
             "no el texto literal."
         ),
         "promocional": (
-            "?nfasis promocional detectado; la oferta de referencia "
+            "\u00c9nfasis promocional detectado; la oferta de referencia "
             "no se atribuye a la marca propia."
         ),
         "descriptiva": (
-            "Afirmaci?n/descripci?n detectada; hip?tesis basada en el texto "
+            "Afirmaci\u00f3n/descripci\u00f3n detectada; hip\u00f3tesis basada en el texto "
             "de referencia."
         ),
     }
     return descriptions[kind]
-
-
 def generate_ad_variations(inputs, *, reference=None):
     if not isinstance(inputs, dict):
         raise ValueError("Completa los datos del anuncio.")
@@ -447,6 +444,10 @@ def generate_ad_variations(inputs, *, reference=None):
     else:
         hook_1 = f"\u00bfNecesit\u00e1s {service_action}?"
 
+    # Evitar repetir el mismo encuadre cuando la referencia ya plantea una pregunta.
+    if reference_kind == "pregunta" and hook_1.lstrip().startswith(("¿", "?")):
+        hook_1 = f"Consultá opciones para {product_phrase} con {brand}."
+
     primary_text_1 = (
         f"En {brand}, pod\u00e9s consultar por {product_phrase}. "
         f"{benefit_sentence} "
@@ -491,7 +492,7 @@ def generate_ad_variations(inputs, *, reference=None):
                 f"Locuci\u00f3n: {hook_1} {benefit_sentence} "
                 f"Cierre: {brand} | {cta}."
             ),
-            "reference_structure": structure,
+            "reference_structure": (f"{structure} Enfoque aplicado: destacar el beneficio y proponer una consulta con un gancho alternativo."),
         },
         {
             "angle": "Resolver dudas",
@@ -512,7 +513,7 @@ def generate_ad_variations(inputs, *, reference=None):
                 "y condiciones. "
                 f"Cierre: {brand} | {cta}."
             ),
-            "reference_structure": structure,
+            "reference_structure": (f"{structure} Enfoque aplicado: resolver dudas y facilitar la evaluación de disponibilidad y condiciones."),
         },
         {
             "angle": angle_3,
@@ -525,7 +526,7 @@ def generate_ad_variations(inputs, *, reference=None):
                 f"Texto en pantalla: {video_text_3}. "
                 f"Cierre: {brand} | {cta_3}."
             ),
-            "reference_structure": structure,
+            "reference_structure": (f"{structure} Enfoque aplicado: " + ("presentar la oferta ingresada para la marca propia." if offer else "informar disponibilidad y condiciones sin inventar una oferta.")),
         },
     ]
 def export_variations_csv(variations):
