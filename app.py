@@ -111,6 +111,14 @@ st.markdown(
         font-weight: 800;
         box-shadow: 0 7px 22px rgba(124, 58, 237, 0.25);
     }
+    .agency-sidebar-mark svg {
+        display: block;
+        width: 29px;
+        height: 29px;
+        overflow: visible;
+        filter: drop-shadow(0 1px 3px rgba(255, 255, 255, 0.12));
+    }
+
     .agency-sidebar-name {
         color: #ffffff;
         font-size: 1.12rem;
@@ -1747,7 +1755,13 @@ with st.sidebar:
     st.markdown(
         """
         <div class="agency-sidebar-brand">
-            <div class="agency-sidebar-mark">A</div>
+            <div class="agency-sidebar-mark" role="img" aria-label="Logo Agencia OS">
+                <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                    <path d="M24 5.5 43 39H5L24 5.5Z" fill="none" stroke="#FFFFFF" stroke-width="3.2" stroke-linejoin="round"/>
+                    <path d="M15.5 30.5h6l4-8 4.5 8h3" fill="none" stroke="#E6DEFF" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <circle cx="24" cy="17" r="2.1" fill="#FFFFFF"/>
+                </svg>
+            </div>
             <div class="agency-sidebar-name">AGENCIA OS</div>
             <div class="agency-sidebar-caption">ADVERTISING INTELLIGENCE</div>
         </div>
