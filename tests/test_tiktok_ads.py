@@ -62,6 +62,7 @@ class TikTokReportTests(unittest.TestCase):
 
         self.assertEqual(len(report), 1)
         self.assertEqual(report.iloc[0]["Canal"], "TIKTOK")
+        self.assertEqual(report.iloc[0]["Campaign ID"], "123")
         self.assertEqual(report.iloc[0]["Campaign"], "Campaign fixture")
         self.assertEqual(report.iloc[0]["Spend"], 125.5)
         self.assertEqual(report.iloc[0]["Impressions"], 3400)
