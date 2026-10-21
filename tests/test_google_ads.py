@@ -292,7 +292,7 @@ class GoogleAdsQueryTests(unittest.TestCase):
         self.post.side_effect = [
             self.response({
                 "results": [{
-                    "campaign": {"name": "Search campaign", "status": "ENABLED"},
+                    "campaign": {"id": "456789", "name": "Search campaign", "status": "ENABLED"},
                     "segments": {"date": "2024-04-07"},
                     "metrics": {
                         "costMicros": "2500000",
@@ -319,6 +319,7 @@ class GoogleAdsQueryTests(unittest.TestCase):
         self.assertEqual(len(result), 1)
         row = result.iloc[0]
         self.assertEqual(row["Canal"], "GOOGLE")
+        self.assertEqual(row["Campaign ID"], "456789")
         self.assertEqual(row["Spend"], 2.5)
         self.assertEqual(row["Impressions"], 2000)
         self.assertEqual(row["Clicks"], 25)
