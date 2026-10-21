@@ -556,6 +556,55 @@ st.markdown(
             padding: 14px;
         }
     }
+
+    /* AGENCIA_OS_ACCESSIBILITY_POLISH_V1 */
+    .agency-platform-card {
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+
+    .agency-platform-card:hover {
+        border-color: rgba(182, 165, 255, 0.38);
+        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.18);
+        transform: translateY(-2px);
+    }
+
+    div.stButton > button:focus-visible,
+    div[data-testid="stDownloadButton"] button:focus-visible,
+    div[data-testid="stLinkButton"] a:focus-visible,
+    button[data-baseweb="tab"]:focus-visible {
+        outline: 2px solid #c8bbff;
+        outline-offset: 3px;
+        box-shadow: 0 0 0 4px rgba(155, 123, 255, 0.18);
+    }
+
+    div.stButton > button:disabled,
+    div[data-testid="stDownloadButton"] button:disabled {
+        border-color: rgba(157, 165, 180, 0.16);
+        background: rgba(80, 84, 96, 0.20);
+        color: #7f8795;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    div[data-testid="stTextInput"] input:focus,
+    div[data-testid="stTextArea"] textarea:focus,
+    div[data-baseweb="input"] input:focus {
+        border-color: #9b7bff;
+        box-shadow: 0 0 0 1px rgba(155, 123, 255, 0.36);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+        }
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
