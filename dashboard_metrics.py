@@ -60,3 +60,20 @@ def reports_share_period(periods, expected_period=None):
     if any(not isinstance(value, str) or not value for value in expected):
         return False
     return normalized[0] == expected
+
+
+def instagram_ads_status(meta_report_status):
+    """Describe Instagram's paid-ad status without claiming a separate connection.
+
+    Instagram paid ads are queried through Meta in this app; the Meta report
+    does not split rows by placement, so this status mirrors the Meta query.
+    """
+    statuses = {
+        "data": ("Estado disponible vía Meta", "is-ready"),
+        "empty": ("Sin datos en el informe Meta", "is-empty"),
+        "error": ("Revisar consulta Meta", "is-error"),
+    }
+    return statuses.get(
+        meta_report_status,
+        ("Consulta pendiente a través de Meta", "is-pending"),
+    )
