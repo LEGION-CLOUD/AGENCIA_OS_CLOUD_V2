@@ -7,7 +7,11 @@ from urllib.parse import quote_plus
 import unicodedata
 import re
 from datetime import date, datetime, timedelta
-from dashboard_metrics import count_unique_campaigns, reports_share_period
+from dashboard_metrics import (
+    count_unique_campaigns,
+    instagram_ads_status,
+    reports_share_period,
+)
 from safe_csv import dataframe_to_csv_bytes
 from meta_ads import (
     CAMPAIGN_COLUMNS,
@@ -1901,7 +1905,7 @@ tiktok_status = {
 
 platform_statuses = (
     ("META ADS", meta_status),
-    ("INSTAGRAM ADS", ("Vía cuenta de Meta", "is-connected")),
+    ("INSTAGRAM ADS", instagram_ads_status(meta_report_status)),
     ("GOOGLE ADS", google_status),
     ("TIKTOK ADS", tiktok_status),
 )
