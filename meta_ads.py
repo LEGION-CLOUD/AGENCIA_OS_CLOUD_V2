@@ -10,7 +10,7 @@ import requests
 META_API_VERSION = "v26.0"
 
 CAMPAIGN_COLUMNS = [
-    "Canal", "Campaign ID", "Campaign", "Spend", "Impressions",
+    "Canal", "Campaign ID", "Campaign", "Spend", "Impressions", "Clicks",
     "CTR", "CPC", "Conversions", "Revenue", "ROAS"
 ]
 
@@ -213,6 +213,7 @@ def fetch_meta_insights(token, ad_account, period, *, get=None):
 
                 spend = _metric_value(item.get("spend"))
                 impressions = _metric_value(item.get("impressions"))
+                clicks = _metric_value(item.get("clicks"))
                 revenue = _purchase_value(item.get("action_values"), purchase_types)
                 rows.append({
                     "Canal": "META",
@@ -220,6 +221,7 @@ def fetch_meta_insights(token, ad_account, period, *, get=None):
                     "Campaign": item.get("campaign_name"),
                     "Spend": spend,
                     "Impressions": int(impressions) if impressions is not None else None,
+                    "Clicks": int(clicks) if clicks is not None else None,
                     "CTR": _metric_value(item.get("ctr")),
                     "CPC": _metric_value(item.get("cpc")),
                     "Conversions": _purchase_value(item.get("actions"), purchase_types),

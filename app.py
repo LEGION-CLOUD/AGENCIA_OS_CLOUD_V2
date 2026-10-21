@@ -1766,7 +1766,7 @@ if "meta_query" in st.session_state:
         st.info("Meta respondió correctamente sin campañas para el período consultado.")
     elif st.session_state.get("meta_result_status") == "data":
         df_meta = st.session_state["df_meta"]
-        metric_columns = ["Spend", "Impressions", "CTR", "CPC", "Conversions", "Revenue"]
+        metric_columns = ["Spend", "Impressions", "Clicks", "CTR", "CPC", "Conversions", "Revenue"]
         if df_meta[metric_columns].notna().any().any():
             st.success(f"Meta devolvió {len(df_meta)} campañas con resultados.")
         else:

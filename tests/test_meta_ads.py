@@ -63,6 +63,7 @@ class MetaInsightsTests(unittest.TestCase):
                 "campaign_name": "Campaign from mocked historical fixture",
                 "spend": "125.50",
                 "impressions": "3400",
+                "clicks": "42",
                 "ctr": "1.25",
                 "cpc": "2.10",
                 "actions": [{"action_type": "purchase", "value": "3"}],
@@ -83,6 +84,7 @@ class MetaInsightsTests(unittest.TestCase):
         self.assertEqual(result.iloc[0]["Campaign ID"], "meta-campaign-555")
         self.assertEqual(result.iloc[0]["Spend"], 125.5)
         self.assertEqual(result.iloc[0]["Impressions"], 3400)
+        self.assertEqual(result.iloc[0]["Clicks"], 42)
         self.assertEqual(result.iloc[0]["Conversions"], 3.0)
         self.assertAlmostEqual(result.iloc[0]["ROAS"], 500 / 125.5)
         args, kwargs = self.get.call_args
@@ -108,7 +110,7 @@ class MetaInsightsTests(unittest.TestCase):
             )
 
         self.assertTrue(result.empty)
-        self.assertEqual(len(result.columns), 10)
+        self.assertEqual(len(result.columns), 11)
         diagnostic = "\n".join(captured.output)
         self.assertIn("account=act_123456", diagnostic)
         self.assertIn("since=2026-09-15 until=2026-10-14", diagnostic)
