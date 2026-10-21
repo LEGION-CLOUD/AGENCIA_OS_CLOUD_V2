@@ -1,6 +1,7 @@
 import base64
 import binascii
 import hmac
+import math
 import json
 import re
 import secrets as secrets_module
@@ -413,13 +414,14 @@ def build_campaign_query(period):
     )
 
 
-def _number(value, default=0):
+def _number(value, default=None):
     if value is None or value == "":
         return default
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return default
+    return number if math.isfinite(number) else default
 
 
 def _field(mapping, snake_name, camel_name):
@@ -432,9 +434,18 @@ def _campaign_row(row):
     metrics = row.get("metrics") or {}
     segments = row.get("segments") or {}
 
-    spend = _number(_field(metrics, "cost_micros", "costMicros")) / 1_000_000
-    average_cpc = _number(_field(metrics, "average_cpc", "averageCpc")) / 1_000_000
-    ctr = _number(metrics.get("ctr")) * 100
+    cost_micros = _number(_field(metrics, "cost_micros", "costMicros"))
+    average_cpc_micros = _number(_field(metrics, "average_cpc", "averageCpc"))
+    ctr_ratio = _number(metrics.get("ctr"))
+    impressions_value = _number(metrics.get("impressions"))
+    clicks_value = _number(metrics.get("clicks"))
+    spend = cost_micros / 1_000_000 if cost_micros is not None else None
+    average_cpc = (
+        average_cpc_micros / 1_000_000
+        if average_cpc_micros is not None
+        else None
+    )
+    ctr = ctr_ratio * 100 if ctr_ratio is not None else None
     conversions = _number(metrics.get("conversions"))
     revenue = _number(_field(metrics, "conversions_value", "conversionsValue"))
     return {
@@ -444,13 +455,13 @@ def _campaign_row(row):
         "Status": campaign.get("status"),
         "Date": segments.get("date"),
         "Spend": spend,
-        "Impressions": int(_number(metrics.get("impressions"))),
-        "Clicks": int(_number(metrics.get("clicks"))),
+        "Impressions": int(impressions_value) if impressions_value is not None else None,
+        "Clicks": int(clicks_value) if clicks_value is not None else None,
         "CTR": ctr,
         "CPC": average_cpc,
         "Conversions": conversions,
         "Revenue": revenue,
-        "ROAS": revenue / spend if spend > 0 else None,
+        "ROAS": revenue / spend if revenue is not None and spend is not None and spend > 0 else None,
     }
 
 

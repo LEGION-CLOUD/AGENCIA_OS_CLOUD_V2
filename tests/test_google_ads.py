@@ -1,4 +1,6 @@
 import unittest
+
+import pandas as pd
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import Mock
 
@@ -287,6 +289,30 @@ class GoogleAdsQueryTests(unittest.TestCase):
 
     def test_customer_id_normalization(self):
         self.assertEqual(normalize_customer_id("123-456-7890"), "1234567890")
+
+    def test_missing_google_metrics_stay_unavailable_instead_of_becoming_zero(self):
+        self.post.return_value = self.response({
+            "results": [{
+                "campaign": {"id": "missing-metrics", "name": "Partial row", "status": "ENABLED"},
+                "segments": {"date": "2026-10-20"},
+                "metrics": {},
+            }]
+        })
+
+        result = fetch_google_campaigns(
+            "test-access-token",
+            "123-456-7890",
+            ("2026-10-01", "2026-10-20"),
+            post=self.post,
+        )
+
+        row = result.iloc[0]
+        for field in (
+            "Spend", "Impressions", "Clicks", "CTR", "CPC",
+            "Conversions", "Revenue", "ROAS",
+        ):
+            with self.subTest(field=field):
+                self.assertTrue(pd.isna(row[field]), f"{field} must remain unavailable")
 
     def test_realistic_rows_are_normalized_and_pagination_is_followed(self):
         self.post.side_effect = [
