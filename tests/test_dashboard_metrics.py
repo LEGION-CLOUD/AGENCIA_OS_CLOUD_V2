@@ -38,6 +38,23 @@ class UniqueCampaignCountTests(unittest.TestCase):
 
         self.assertIsNone(count_unique_campaigns(report))
 
+    def test_reports_must_have_same_explicit_period_before_consolidation(self):
+        from dashboard_metrics import reports_share_period
+
+        self.assertTrue(reports_share_period([
+            ("2026-10-01", "2026-10-20"),
+            ("2026-10-01", "2026-10-20"),
+        ]))
+        self.assertFalse(reports_share_period([
+            ("2026-10-01", "2026-10-20"),
+            ("2026-09-21", "2026-10-20"),
+        ]))
+        self.assertFalse(reports_share_period([
+            ("2026-10-01", "2026-10-20"),
+            None,
+        ]))
+        self.assertFalse(reports_share_period([]))
+
     def test_none_and_empty_report_are_handled(self):
         self.assertIsNone(count_unique_campaigns(None))
         self.assertEqual(count_unique_campaigns(pd.DataFrame(columns=[
