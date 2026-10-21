@@ -50,6 +50,8 @@ from license_security import (
     build_license_rotation_plan,
     create_license_record,
     find_exposed_license_keys,
+    license_key_fingerprint,
+    resolve_active_license_for_fingerprint,
 )
 from competitor_tools import (
     SOURCE_URLS,
@@ -731,8 +733,11 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "df_tiktok",
     "tiktok_report",
     "df_all",
+    "df_all_period",
     "gasto_all",
     "roas_all",
+    "_license_fingerprint",
+    "_license_last_checked_at",
     "competitor_tenant_id",
     "competitor_tenant_candidates_v1",
     "competitor_observations_v1",
@@ -1197,6 +1202,32 @@ try:
 except GoogleAdsError as exc:
     google_config_error = str(exc)
 
+LICENSE_REVALIDATION_INTERVAL_SECONDS = 120
+if st.session_state.get("license_valid"):
+    try:
+        last_license_check = float(
+            st.session_state.get("_license_last_checked_at", 0)
+        )
+    except (TypeError, ValueError, OverflowError):
+        last_license_check = 0
+
+    current_timestamp = datetime.now().timestamp()
+    if current_timestamp - last_license_check >= LICENSE_REVALIDATION_INTERVAL_SECONDS:
+        live_licenses = load_licenses()
+        refreshed_license = resolve_active_license_for_fingerprint(
+            live_licenses,
+            st.session_state.get("_license_fingerprint"),
+        )
+        if refreshed_license is None:
+            invalidate_license_session(st.session_state)
+            st.warning(
+                "La licencia venció, fue desactivada o ya no está disponible. "
+                "Ingresá nuevamente para continuar."
+            )
+        else:
+            st.session_state["license_data"] = refreshed_license
+            st.session_state["_license_last_checked_at"] = current_timestamp
+
 if not st.session_state["license_valid"]:
     invalidate_license_session(st.session_state)
     st.markdown("<h1 style='text-align:center; margin-top:80px; font-weight:800;'>AGENCIA OS</h1>",unsafe_allow_html=True)
@@ -1209,6 +1240,10 @@ if not st.session_state["license_valid"]:
             ok,info=validate_license(lic_input,licenses)
             if ok:
                 start_license_session(st.session_state)
+                st.session_state["_license_fingerprint"] = license_key_fingerprint(
+                    lic_input
+                )
+                st.session_state["_license_last_checked_at"] = datetime.now().timestamp()
                 tenant_candidates = tenant_id_candidates_for_license(info, lic_input)
                 st.session_state["competitor_tenant_candidates_v1"] = tenant_candidates
                 st.session_state["competitor_tenant_id"] = tenant_candidates[0]

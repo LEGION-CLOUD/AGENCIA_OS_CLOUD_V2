@@ -41,6 +41,40 @@ def generate_license_key(year=None):
     return f"LEGION-{year}-{secrets.token_hex(24).upper()}"
 
 
+def resolve_active_license_for_fingerprint(licenses, fingerprint, *, now=None):
+    """Resolve an active, unexpired license without storing its plaintext key in session state."""
+    fingerprint = str(fingerprint or "").strip().lower()
+    if len(fingerprint) != 64 or any(ch not in "0123456789abcdef" for ch in fingerprint):
+        return None
+
+    for key, record in (licenses or {}).items():
+        if license_key_fingerprint(key) != fingerprint:
+            continue
+        if not isinstance(record, dict) or not record.get("active", True):
+            return None
+        try:
+            expires_at = datetime.fromisoformat(str(record.get("expires") or ""))
+        except (TypeError, ValueError):
+            return None
+
+        if now is None:
+            current_time = datetime.now(expires_at.tzinfo) if expires_at.tzinfo else datetime.now()
+        else:
+            current_time = now
+            if expires_at.tzinfo is not None and current_time.tzinfo is None:
+                current_time = current_time.replace(tzinfo=expires_at.tzinfo)
+            elif expires_at.tzinfo is None and current_time.tzinfo is not None:
+                current_time = current_time.replace(tzinfo=None)
+
+        try:
+            if current_time >= expires_at:
+                return None
+        except TypeError:
+            return None
+        return dict(record)
+    return None
+
+
 def _positive_integer(value, label, *, maximum=None):
     """Parse a positive integer without silently truncating decimals or booleans."""
     if isinstance(value, bool):
