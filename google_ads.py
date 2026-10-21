@@ -247,10 +247,22 @@ def complete_oauth_callback(
     config,
     expected_license_fingerprint,
     *,
+    expected_state,
     oauth_error=None,
     now=None,
     post=None,
 ):
+    if (
+        not isinstance(expected_state, str)
+        or not expected_state.isascii()
+        or not isinstance(state, str)
+        or not state.isascii()
+        or not hmac.compare_digest(state, expected_state)
+    ):
+        raise GoogleAdsError(
+            "La respuesta de Google no coincide con la solicitud de esta sesión. "
+            "Volvé a iniciar la conexión."
+        )
     if not validate_oauth_state(
         state,
         config,
