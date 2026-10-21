@@ -52,6 +52,7 @@ from license_security import (
     find_exposed_license_keys,
 )
 from competitor_tools import (
+    SOURCE_URLS,
     generate_ad_variations,
     export_variations_csv,
     export_variations_txt,
@@ -1943,7 +1944,7 @@ with t1:
 
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("BUSCAR ANUNCIOS PUBLICOS", type="primary", use_container_width=True):
+        if st.button("BUSCAR ANUNCIOS PÚBLICOS", type="primary", use_container_width=True):
             if not comp.strip():
                 st.warning("Escribí una marca para buscar.")
             else:
@@ -1973,11 +1974,30 @@ with t1:
             use_container_width=True,
         )
         st.caption(
-            "La busqueda se abre en Meta. Agencia OS no descarga ni verifica automaticamente "
-            "los anuncios mostrados en esa pagina."
+            "La búsqueda se abre en Meta. Agencia OS no descarga ni verifica automáticamente "
+            "los anuncios mostrados en esa página."
         )
 
-    if st.button("COMPARAR HIPOTESIS DE DOS MARCAS", use_container_width=True):
+    st.markdown("#### Otras bibliotecas públicas")
+    source_google, source_tiktok = st.columns(2)
+    with source_google:
+        st.link_button(
+            "Abrir Google Ads Transparency Center",
+            SOURCE_URLS["Google Ads Transparency Center"],
+            use_container_width=True,
+        )
+    with source_tiktok:
+        st.link_button(
+            "Abrir Biblioteca de contenido comercial de TikTok",
+            SOURCE_URLS["TikTok Commercial Content Library"],
+            use_container_width=True,
+        )
+    st.caption(
+        "Google y TikTok se abren en sus bibliotecas oficiales para que busques manualmente. "
+        "Agencia OS no descarga anuncios ni atribuye métricas automáticamente."
+    )
+
+    if st.button("COMPARAR HIPÓTESIS DE DOS MARCAS", use_container_width=True):
         if not comp.strip() or not comp2.strip():
             st.warning("Completa las dos marcas para compararlas.")
         elif comp.strip().casefold() == comp2.strip().casefold():
