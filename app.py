@@ -628,13 +628,12 @@ def load_licenses():
         }
 
     except Exception as exc:
-        detalle = str(exc)
-        if "response" in locals():
-            detalle += f" | HTTP: {response.status_code}"
-            detalle += f" | Respuesta: {response.text[:1000]}"
+        status_code = response.status_code if "response" in locals() else None
+        diagnostic = f"HTTP {status_code}" if status_code is not None else type(exc).__name__
         st.error(
             "No se pudieron cargar las licencias desde Supabase. "
-            f"Detalle técnico: {detalle}"
+            "Revisá la conexión y la configuración del servidor. "
+            f"Referencia técnica: {diagnostic}."
         )
         st.stop()
 
@@ -668,10 +667,12 @@ def save_licenses(licenses):
         )
         response.raise_for_status()
     except Exception as exc:
+        status_code = response.status_code if "response" in locals() else None
+        diagnostic = f"HTTP {status_code}" if status_code is not None else type(exc).__name__
         st.error(
             "No se pudieron guardar las licencias en Supabase. "
             "Revisá la conexión y los permisos. "
-            f"Detalle: {exc}"
+            f"Referencia técnica: {diagnostic}."
         )
         st.stop()
 
@@ -688,9 +689,11 @@ def delete_license(license_key):
         )
         response.raise_for_status()
     except Exception as exc:
+        status_code = response.status_code if "response" in locals() else None
+        diagnostic = f"HTTP {status_code}" if status_code is not None else type(exc).__name__
         st.error(
             "No se pudo eliminar la licencia en Supabase. "
-            f"Detalle: {exc}"
+            f"Referencia técnica: {diagnostic}."
         )
         st.stop()
 
@@ -814,21 +817,6 @@ def invalidate_license_session(session_state):
 def hash_pick(text, options):
     h=int(hashlib.md5(text.lower().encode()).hexdigest(),16)
     return options[h % len(options)]
-
-BRAND_DB = {
-    "coto": {"industria":"SUPERMERCADO","pos":"Precio más bajo + Comunidad Coto 30% + carne barata","fuerte":"Carne, Comunidad, 2x1","debil":"No tiene envíos rápidos, marca vieja","ticket":45000},
-    "dia": {"industria":"SUPERMERCADO","pos":"Marca propia Dia + ahorro extremo + cercanía barrio","fuerte":"Marca propia barata, locales chicos","debil":"Poca variedad premium, no carnes premium","ticket":18000},
-    "carrefour": {"industria":"SUPERMERCADO","pos":"Hiper con todo + Mi Carrefour + Precios Corajudos","fuerte":"Variedad enorme, electro, marca propia","debil":"Precios inestables, experiencia caótica","ticket":38000},
-    "vea": {"industria":"SUPERMERCADO","pos":"Super argentino familiar + VEA Ahorro","fuerte":"Presencia interior país, promos bancarias","debil":"Poco digital, sin comunidad fuerte","ticket":25000},
-    "disco": {"industria":"SUPERMERCADO","pos":"Premium + calidad + Disco Plus","fuerte":"Productos premium, atención, vinos","debil":"Caro, no compite por precio","ticket":52000},
-    "jumbo": {"industria":"SUPERMERCADO","pos":"Jumbo premium + Jumbo Más + importados","fuerte":"Importados, gourmet, calidad","debil":"Muy caro, para ABC1","ticket":65000},
-    "levis": {"industria":"MODA","pos":"Original 501 + durabilidad 100 años + heritage USA","fuerte":"Calidad denim, marca aspiracional, 501 icónico","debil":"Caro, poca moda rápida, talles limitados","ticket":89000},
-    "zara": {"industria":"MODA","pos":"Fast fashion + tendencia pasarela en 2 semanas","fuerte":"Tendencia ultra rápida, variedad infinita","debil":"Calidad media, se rompe rápido, poco sustentable","ticket":45000},
-    "47 street": {"industria":"MODA","pos":"Teen argentina + jean que levanta cola + UGC real","fuerte":"Horma argentina, UGC, precio medio","debil":"Solo teen, no +30","ticket":38000},
-    "complot": {"industria":"MODA","pos":"Diseño autor argentino + exclusivo","fuerte":"Diseño, no masivo, calidad","debil":"Caro, pocos locales","ticket":72000},
-    "fravega": {"industria":"TECH","pos":"Electro barato + cuotas sin interés + retiro rápido","fuerte":"Cuotas, variedad electro, Frávega 100 años","debil":"Post-venta malo, letra chica","ticket":150000},
-    "musimundo": {"industria":"TECH","pos":"Tech joven + gaming + Musimundo a todo","fuerte":"Gaming, audio, joven","debil":"Stock inconsistente","ticket":90000},
-}
 
 def coincide_termino(texto, termino):
     """Busca términos completos para evitar coincidencias dentro de otras palabras."""
