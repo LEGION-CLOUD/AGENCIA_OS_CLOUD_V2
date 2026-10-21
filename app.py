@@ -1802,7 +1802,7 @@ tiktok_status = {
 
 platform_statuses = (
     ("META ADS", meta_status),
-    ("INSTAGRAM", ("Sin integración separada", "is-unavailable")),
+    ("INSTAGRAM ADS", ("Vía cuenta de Meta", "is-connected")),
     ("GOOGLE ADS", google_status),
     ("TIKTOK ADS", tiktok_status),
 )
@@ -1820,7 +1820,15 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.markdown('<div class="agency-section-heading" id="dashboard"><div class="agency-kicker">RESUMEN</div><h2>Dashboard ejecutivo</h2><p>Resultados agregados de los informes cargados para el período seleccionado.</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="agency-section-heading" id="dashboard"><div class="agency-kicker">RESUMEN</div><h2>Dashboard ejecutivo</h2><p>Resumen de los informes cargados para el período seleccionado.</p></div>', unsafe_allow_html=True)
+st.caption(
+    "Los anuncios pagos de Instagram se consultan a través de la cuenta publicitaria de Meta "
+    "conectada y no se separan aquí por ubicación. No se incluyen métricas orgánicas del perfil de Instagram."
+)
+st.caption(
+    "El gasto consolidado suma los importes de cada plataforma tal como llegan; no se convierten monedas. "
+    "Las conversiones y su valor pueden usar modelos de atribución diferentes, por lo que el ROAS conjunto es orientativo."
+)
 k1, k2, k3 = st.columns(3)
 
 if "df_all" in st.session_state:
@@ -1845,8 +1853,8 @@ else:
     roas_display = "\u2014"
     campanas_display = "\u2014"
 
-k1.metric("Gasto", gasto_display, help="Inversión de los informes consolidados")
-k2.metric("ROAS", roas_display, help="Retorno publicitario de los informes consolidados")
+k1.metric("Gasto", gasto_display, help="Suma de los importes reportados. No hay conversión automática si las cuentas usan monedas distintas.")
+k2.metric("ROAS", roas_display, help="Indicador orientativo: las plataformas pueden usar modelos de atribución distintos; sólo se calcula si todos los informes aportan Revenue.")
 k3.metric("Campa\u00f1as", campanas_display, help="Campañas únicas por plataforma; las filas diarias repetidas no se cuentan varias veces.")
 
 if df_all is not None:
