@@ -59,7 +59,7 @@ class GoogleOAuthTests(unittest.TestCase):
         self.assertNotIn("authorization-code", state)
         self.assertNotIn(self.config.client_secret, url)
 
-    def test_signed_state_is_valid_in_a_new_session_and_license_fingerprint_matches(self):
+    def test_callback_uses_session_bound_state_and_license_fingerprint_matches(self):
         license_key = "LEGION-9RLI-2026-NICO"
         license_fp = fingerprint_license(license_key, self.config)
         equivalent_fp = fingerprint_license(
@@ -67,8 +67,7 @@ class GoogleOAuthTests(unittest.TestCase):
             self.config,
         )
         state = create_oauth_state(self.config, license_fp, now=1000)
-        initiating_session = {"google_oauth_state": state}
-        callback_session = {}
+        callback_session = {"google_oauth_expected_state": state}
         self.assertTrue(
             capture_oauth_callback(
                 {"code": "authorization-code", "state": state},
@@ -85,17 +84,18 @@ class GoogleOAuthTests(unittest.TestCase):
         post.return_value = response
 
         pending = callback_session.pop("google_oauth_pending_callback")
+        expected_state = callback_session.pop("google_oauth_expected_state")
         credentials = complete_oauth_callback(
             pending["code"],
             pending["state"],
             self.config,
             equivalent_fp,
+            expected_state=expected_state,
             now=1100,
             post=post,
         )
         callback_session["google_oauth_credentials"] = credentials
 
-        self.assertNotIn("google_oauth_credentials", initiating_session)
         self.assertEqual(
             callback_session["google_oauth_credentials"]["access_token"],
             "session-access-token",
@@ -138,6 +138,24 @@ class GoogleOAuthTests(unittest.TestCase):
             )
         )
 
+    def test_callback_state_must_match_the_saved_session_state(self):
+        license_fp = fingerprint_license("LEGION-9RLI-2026-NICO", self.config)
+        received_state = create_oauth_state(self.config, license_fp, now=1000)
+        another_valid_state = create_oauth_state(self.config, license_fp, now=1000)
+        post = Mock()
+
+        with self.assertRaisesRegex(GoogleAdsError, "no coincide con la solicitud"):
+            complete_oauth_callback(
+                "authorization-code",
+                received_state,
+                self.config,
+                license_fp,
+                expected_state=another_valid_state,
+                now=1100,
+                post=post,
+            )
+        post.assert_not_called()
+
     def test_invalid_state_or_oauth_error_never_exchanges_code(self):
         license_fp = fingerprint_license("LEGION-9RLI-2026-NICO", self.config)
         state = create_oauth_state(self.config, license_fp, now=1000)
@@ -164,6 +182,7 @@ class GoogleOAuthTests(unittest.TestCase):
                         callback_state,
                         self.config,
                         callback_license,
+                        expected_state=state,
                         now=current_time,
                         post=post,
                     )
@@ -173,6 +192,7 @@ class GoogleOAuthTests(unittest.TestCase):
                 state,
                 self.config,
                 license_fp,
+                expected_state=state,
                 oauth_error="access_denied",
                 now=1100,
                 post=post,
