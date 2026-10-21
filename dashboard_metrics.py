@@ -35,3 +35,17 @@ def count_unique_campaigns(report):
 
     unique_pairs = identities.loc[valid, ["Canal", "CampaignKey"]].drop_duplicates()
     return int(len(unique_pairs))
+
+
+
+def reports_share_period(periods):
+    """Return True only when each loaded report has the same explicit date range."""
+    normalized = []
+    for period in periods or []:
+        if not isinstance(period, (tuple, list)) or len(period) != 2:
+            return False
+        start, end = period
+        if not isinstance(start, str) or not isinstance(end, str) or not start or not end:
+            return False
+        normalized.append((start, end))
+    return bool(normalized) and len(set(normalized)) == 1
