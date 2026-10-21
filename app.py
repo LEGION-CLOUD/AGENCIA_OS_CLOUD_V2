@@ -28,6 +28,7 @@ from google_ads import (
     complete_oauth_callback,
     create_oauth_state,
     fetch_google_campaigns,
+    validate_oauth_state,
     fingerprint_license,
     get_valid_access_token,
     load_oauth_config,
@@ -774,6 +775,8 @@ LICENSE_SCOPED_SESSION_KEYS = (
     "google_oauth_credentials",
     "google_oauth_license_fingerprint",
     "google_oauth_pending_callback",
+    "google_oauth_expected_state",
+    "google_oauth_expected_license_fingerprint",
     "google_oauth_notice",
     "google_license_fingerprint",
     "google_customer_id",
@@ -1324,9 +1327,20 @@ google_oauth_notice = st.session_state.pop("google_oauth_notice", None)
 pending_oauth_callback = st.session_state.get("google_oauth_pending_callback")
 if pending_oauth_callback is not None and google_license_fingerprint:
     st.session_state.pop("google_oauth_pending_callback", None)
+    expected_oauth_state = st.session_state.pop(
+        "google_oauth_expected_state", None
+    )
+    expected_oauth_license_fingerprint = st.session_state.pop(
+        "google_oauth_expected_license_fingerprint", None
+    )
     if google_config is None:
         google_oauth_notice = (
             "No se pudo validar la autorización porque falta configurar Google OAuth."
+        )
+    elif expected_oauth_license_fingerprint != google_license_fingerprint:
+        google_oauth_notice = (
+            "La solicitud de Google no coincide con esta sesión. "
+            "Volvé a iniciar la conexión."
         )
     else:
         try:
@@ -1335,6 +1349,7 @@ if pending_oauth_callback is not None and google_license_fingerprint:
                 pending_oauth_callback.get("state"),
                 google_config,
                 google_license_fingerprint,
+                expected_state=expected_oauth_state,
                 oauth_error=pending_oauth_callback.get("error"),
             )
         except GoogleAdsError as exc:
@@ -1500,10 +1515,25 @@ with st.sidebar:
                 st.session_state.pop("google_report", None)
                 google_credentials = None
             if not google_credentials:
-                google_state = create_oauth_state(
-                    google_config,
-                    google_license_fingerprint,
+                google_state = st.session_state.get("google_oauth_expected_state")
+                expected_state_valid = (
+                    st.session_state.get("google_oauth_expected_license_fingerprint")
+                    == google_license_fingerprint
+                    and validate_oauth_state(
+                        google_state,
+                        google_config,
+                        google_license_fingerprint,
+                    )
                 )
+                if not expected_state_valid:
+                    google_state = create_oauth_state(
+                        google_config,
+                        google_license_fingerprint,
+                    )
+                    st.session_state["google_oauth_expected_state"] = google_state
+                    st.session_state["google_oauth_expected_license_fingerprint"] = (
+                        google_license_fingerprint
+                    )
                 st.link_button(
                     "Conectar Google Ads",
                     build_authorization_url(google_config, google_state),
