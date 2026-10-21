@@ -125,10 +125,17 @@ class CompetitorObservationTests(unittest.TestCase):
             import_observations_json("not json")
 
     def test_csv_export_contains_observation_fields_and_handles_commas(self):
-        records = [self.sample(notes="Nota, con coma")]
+        records = [self.sample(
+            notes="Nota, con coma",
+            headline='=HYPERLINK("https://example.invalid", "click")',
+        )]
         parsed = list(csv.DictReader(io.StringIO(export_observations_csv(records))))
         self.assertEqual(parsed[0]["brand"], "Marca ejemplo")
         self.assertEqual(parsed[0]["notes"], "Nota, con coma")
+        self.assertEqual(
+            parsed[0]["headline"],
+            '\'=HYPERLINK("https://example.invalid", "click")',
+        )
         self.assertEqual(parsed[0]["platform"], "Meta")
         self.assertNotIn("Spend", parsed[0])
 
@@ -231,6 +238,17 @@ class AdVariationTests(unittest.TestCase):
         self.assertIn("Titular: Titular editado", text)
         self.assertEqual(len(csv_rows), 3)
         self.assertIn("VARIACIÓN 3", text)
+
+    def test_variation_csv_neutralizes_formula_like_copy(self):
+        variations = generate_ad_variations(self.inputs())
+        variations[0]["headline"] = '=HYPERLINK("https://example.invalid", "click")'
+
+        rows = list(csv.DictReader(io.StringIO(export_variations_csv(variations))))
+
+        self.assertEqual(
+            rows[0]["headline"],
+            '\'=HYPERLINK("https://example.invalid", "click")',
+        )
 
     def test_generated_copy_preserves_spanish_accents(self):
         rendered = export_variations_txt(
