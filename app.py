@@ -1487,7 +1487,7 @@ with st.sidebar:
                 else f"{name}: período desconocido"
                 for name, _, period in loaded_reports
             )
-            for key in ("df_all", "gasto_all", "roas_all"):
+            for key in ("df_all", "df_all_period", "gasto_all", "roas_all"):
                 st.session_state.pop(key, None)
             st.error(
                 "No se unificaron los informes porque los períodos no coinciden, "
@@ -1515,6 +1515,7 @@ with st.sidebar:
                 else None
             )
             st.session_state["df_all"] = df_all
+            st.session_state["df_all_period"] = current_selected_period
             st.session_state["gasto_all"] = gasto_all
             st.session_state["roas_all"] = roas_all
             st.success("Informes unificados para un período común.")
@@ -1833,6 +1834,18 @@ st.markdown(
     + "</div>",
     unsafe_allow_html=True,
 )
+
+dashboard_current_period = meta_date_range(
+    preset,
+    custom_start=custom_start,
+    custom_end=custom_end,
+)
+if "df_all" in st.session_state and not reports_share_period(
+    [st.session_state.get("df_all_period")],
+    expected_period=dashboard_current_period,
+):
+    for key in ("df_all", "df_all_period", "gasto_all", "roas_all"):
+        st.session_state.pop(key, None)
 
 st.markdown('<div class="agency-section-heading" id="dashboard"><div class="agency-kicker">RESUMEN</div><h2>Dashboard ejecutivo</h2><p>Resumen de los informes cargados para el período seleccionado.</p></div>', unsafe_allow_html=True)
 st.caption(
