@@ -85,6 +85,30 @@ class UniqueCampaignCountTests(unittest.TestCase):
             "Canal", "Campaign ID", "Campaign"
         ])), 0)
 
+    def test_instagram_paid_ads_status_mirrors_meta_query_state(self):
+        from dashboard_metrics import instagram_ads_status
+
+        self.assertEqual(
+            instagram_ads_status("data"),
+            ("Estado disponible vía Meta", "is-ready"),
+        )
+        self.assertEqual(
+            instagram_ads_status("empty"),
+            ("Sin datos en el informe Meta", "is-empty"),
+        )
+        self.assertEqual(
+            instagram_ads_status("error"),
+            ("Revisar consulta Meta", "is-error"),
+        )
+        self.assertEqual(
+            instagram_ads_status("pending"),
+            ("Consulta pendiente a través de Meta", "is-pending"),
+        )
+        self.assertEqual(
+            instagram_ads_status(None),
+            ("Consulta pendiente a través de Meta", "is-pending"),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
