@@ -8,6 +8,7 @@ import unicodedata
 import re
 from datetime import date, datetime, timedelta
 from dashboard_metrics import count_unique_campaigns, reports_share_period
+from safe_csv import dataframe_to_csv_bytes
 from meta_ads import (
     CAMPAIGN_COLUMNS,
     MetaAdsError,
@@ -1666,7 +1667,7 @@ if "google_report" in st.session_state:
         st.dataframe(df_google, use_container_width=True)
         st.download_button(
             "Descargar informe GOOGLE ADS (CSV)",
-            data=df_google.to_csv(index=False).encode("utf-8-sig"),
+            data=dataframe_to_csv_bytes(df_google),
             file_name=f"google_ads_campanas_{since}_{until}.csv",
             mime="text/csv",
             key="download_google_csv",
@@ -1739,7 +1740,7 @@ if "meta_query" in st.session_state:
         st.dataframe(df_meta, use_container_width=True)
         st.download_button(
             "Descargar informe META (CSV)",
-            data=df_meta.to_csv(index=False).encode("utf-8-sig"),
+            data=dataframe_to_csv_bytes(df_meta),
             file_name=f"meta_campanas_{since}_{until}.csv",
             mime="text/csv",
             key="download_meta_csv",

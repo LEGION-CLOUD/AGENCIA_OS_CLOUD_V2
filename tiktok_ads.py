@@ -7,6 +7,8 @@ from io import BytesIO
 import pandas as pd
 import requests
 
+from safe_csv import dataframe_to_csv_bytes
+
 
 TIKTOK_API_BASE_URL = "https://business-api.tiktok.com/open_api/v1.3"
 TIKTOK_REPORT_ENDPOINT = f"{TIKTOK_API_BASE_URL}/report/integrated/get/"
@@ -224,7 +226,7 @@ def fetch_campaign_report(access_token, advertiser_id, period, *, get=None):
 
 
 def export_report_csv(report):
-    return report.to_csv(index=False).encode("utf-8-sig")
+    return dataframe_to_csv_bytes(report)
 
 
 def export_report_excel(report):

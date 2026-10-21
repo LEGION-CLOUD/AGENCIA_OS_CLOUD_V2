@@ -7,6 +7,8 @@ import uuid
 from datetime import date
 from urllib.parse import urlsplit
 
+from safe_csv import escape_csv_record
+
 
 PLATFORMS = ("Meta", "Google", "TikTok", "Otra")
 SOURCE_URLS = {
@@ -257,7 +259,7 @@ def export_observations_csv(observations):
     output = io.StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=OBSERVATION_FIELDS)
     writer.writeheader()
-    writer.writerows(create_observation(record) for record in observations)
+    writer.writerows(escape_csv_record(create_observation(record)) for record in observations)
     return output.getvalue()
 
 
@@ -537,7 +539,9 @@ def export_variations_csv(variations):
     writer = csv.DictWriter(output, fieldnames=VARIATION_FIELDS)
     writer.writeheader()
     writer.writerows(
-        {field: variation.get(field, "") for field in VARIATION_FIELDS}
+        escape_csv_record({
+            field: variation.get(field, "") for field in VARIATION_FIELDS
+        })
         for variation in variations
     )
     return output.getvalue()
