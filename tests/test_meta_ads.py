@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import requests
 
-from meta_ads import MetaAdsError, fetch_meta_insights, meta_date_range
+from meta_ads import META_API_VERSION, MetaAdsError, fetch_meta_insights, meta_date_range
 
 
 class MetaDateRangeTests(unittest.TestCase):
@@ -88,7 +88,7 @@ class MetaInsightsTests(unittest.TestCase):
         args, kwargs = self.get.call_args
         self.assertEqual(
             args[0],
-            "https://graph.facebook.com/v24.0/act_123456/insights",
+            f"https://graph.facebook.com/{META_API_VERSION}/act_123456/insights",
         )
         self.assertEqual(
             json.loads(kwargs["params"]["time_range"]),

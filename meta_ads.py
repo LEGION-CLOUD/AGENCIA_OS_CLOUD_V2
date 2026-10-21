@@ -7,6 +7,8 @@ import pandas as pd
 import requests
 
 
+META_API_VERSION = "v26.0"
+
 CAMPAIGN_COLUMNS = [
     "Canal", "Campaign ID", "Campaign", "Spend", "Impressions",
     "CTR", "CPC", "Conversions", "Revenue", "ROAS"
@@ -108,7 +110,7 @@ def fetch_meta_insights(token, ad_account, period, *, get=None):
 
     account_id = normalize_ad_account(ad_account)
     since, until = period
-    url = f"https://graph.facebook.com/v24.0/{account_id}/insights"
+    url = f"https://graph.facebook.com/{META_API_VERSION}/{account_id}/insights"
     params = {
         "access_token": token.strip(),
         "level": "campaign",
