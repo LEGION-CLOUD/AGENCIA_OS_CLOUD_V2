@@ -22,7 +22,11 @@ class TikTokDashboardTests(unittest.TestCase):
         # Simulate an already-authenticated session without calling Supabase
         # for a real license or using a production credential.
         app.session_state["license_valid"] = True
-        app.session_state["license_data"] = {"client": "Dashboard test"}
+        app.session_state["license_data"] = {
+            "client": "Dashboard test",
+            "created": "2026-01-01T00:00:00",
+            "expires": "2027-01-01T00:00:00",
+        }
         app.session_state["_license_scope"] = "isolated-dashboard-test"
         app.session_state["_license_fingerprint"] = "test-fingerprint"
         app.session_state["_license_last_checked_at"] = datetime.now().timestamp()
