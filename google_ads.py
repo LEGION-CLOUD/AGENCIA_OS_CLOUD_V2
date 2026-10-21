@@ -247,12 +247,16 @@ def complete_oauth_callback(
     config,
     expected_license_fingerprint,
     *,
-    expected_state,
+    expected_state=None,
     oauth_error=None,
     now=None,
     post=None,
 ):
-    if (
+    # Prefer strict same-session comparison when Streamlit retains the initiating
+    # state. st.link_button opens a new tab, so a returning OAuth callback may
+    # have a fresh Streamlit session; in that case, the signed state, license
+    # fingerprint, and expiry checks below remain mandatory.
+    if expected_state is not None and (
         not isinstance(expected_state, str)
         or not expected_state.isascii()
         or not isinstance(state, str)

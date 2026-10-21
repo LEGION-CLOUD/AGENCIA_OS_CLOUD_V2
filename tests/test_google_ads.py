@@ -138,6 +138,31 @@ class GoogleOAuthTests(unittest.TestCase):
             )
         )
 
+    def test_signed_state_is_validated_when_google_returns_in_a_new_session(self):
+        license_fp = fingerprint_license("LEGION-9RLI-2026-NICO", self.config)
+        state = create_oauth_state(self.config, license_fp, now=1000)
+        post = Mock()
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            "access_token": "session-access-token",
+            "refresh_token": "session-refresh-token",
+            "expires_in": 3600,
+        }
+        post.return_value = response
+
+        credentials = complete_oauth_callback(
+            "authorization-code",
+            state,
+            self.config,
+            license_fp,
+            expected_state=None,
+            now=1100,
+            post=post,
+        )
+
+        self.assertEqual(credentials["access_token"], "session-access-token")
+        post.assert_called_once()
+
     def test_callback_state_must_match_the_saved_session_state(self):
         license_fp = fingerprint_license("LEGION-9RLI-2026-NICO", self.config)
         received_state = create_oauth_state(self.config, license_fp, now=1000)

@@ -1337,7 +1337,10 @@ if pending_oauth_callback is not None and google_license_fingerprint:
         google_oauth_notice = (
             "No se pudo validar la autorización porque falta configurar Google OAuth."
         )
-    elif expected_oauth_license_fingerprint != google_license_fingerprint:
+    elif (
+        expected_oauth_license_fingerprint is not None
+        and expected_oauth_license_fingerprint != google_license_fingerprint
+    ):
         google_oauth_notice = (
             "La solicitud de Google no coincide con esta sesión. "
             "Volvé a iniciar la conexión."
