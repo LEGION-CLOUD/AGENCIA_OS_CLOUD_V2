@@ -94,6 +94,7 @@ class MetaInsightsTests(unittest.TestCase):
             json.loads(kwargs["params"]["time_range"]),
             {"since": period[0], "until": period[1]},
         )
+        self.assertFalse(kwargs["allow_redirects"])
 
     def test_successful_empty_response_returns_empty_frame_not_zero_metrics(self):
         self.get.return_value = self.response({"data": []})
