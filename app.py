@@ -1466,9 +1466,21 @@ with st.sidebar:
             for name, key, period in report_sources
             if key in st.session_state and not st.session_state[key].empty
         ]
+        loaded_periods = [period for _, _, period in loaded_reports]
+        current_selected_period = meta_date_range(
+            preset,
+            custom_start=custom_start,
+            custom_end=custom_end,
+        )
         if not loaded_reports:
             st.warning("Bajá al menos un canal que haya devuelto datos reales.")
-        elif not reports_share_period([period for _, _, period in loaded_reports]):
+        elif (
+            not reports_share_period(loaded_periods)
+            or not reports_share_period(
+                loaded_periods,
+                expected_period=current_selected_period,
+            )
+        ):
             period_details = ", ".join(
                 f"{name}: {period[0]} a {period[1]}"
                 if isinstance(period, (tuple, list)) and len(period) == 2
@@ -1478,9 +1490,11 @@ with st.sidebar:
             for key in ("df_all", "gasto_all", "roas_all"):
                 st.session_state.pop(key, None)
             st.error(
-                "No se unificaron los informes porque los períodos no coinciden "
-                "o falta la fecha de algún reporte. Volvé a descargar los canales "
-                "usando el mismo rango. " + period_details
+                "No se unificaron los informes porque los períodos no coinciden, "
+                "falta la fecha de algún reporte o el rango seleccionado cambió. "
+                "Volvé a descargar los canales usando el rango actual. "
+                f"Rango seleccionado: {current_selected_period[0]} a {current_selected_period[1]}. "
+                + period_details
             )
         else:
             frames = [report for _, report, _ in loaded_reports]
