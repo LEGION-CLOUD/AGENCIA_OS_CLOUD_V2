@@ -251,6 +251,21 @@ class TikTokReportTests(unittest.TestCase):
         self.assertIn(b"Campaign", export_report_csv(empty_report))
         self.assertFalse(pd.read_excel(BytesIO(export_report_excel(empty_report))).shape[0])
 
+    def test_csv_export_neutralizes_formula_like_campaign_names(self):
+        report = pd.DataFrame([{
+            "Canal": "TIKTOK",
+            "Campaign": '=HYPERLINK("https://example.invalid", "click")',
+            "Spend": 12.5,
+        }])
+
+        parsed = pd.read_csv(BytesIO(export_report_csv(report)))
+
+        self.assertEqual(
+            parsed.iloc[0]["Campaign"],
+            '\'=HYPERLINK("https://example.invalid", "click")',
+        )
+        self.assertEqual(parsed.iloc[0]["Spend"], 12.5)
+
     def test_config_repr_does_not_include_access_token(self):
         self.assertNotIn(
             self.token,
