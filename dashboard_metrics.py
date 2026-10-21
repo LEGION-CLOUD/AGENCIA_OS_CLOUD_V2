@@ -38,8 +38,8 @@ def count_unique_campaigns(report):
 
 
 
-def reports_share_period(periods):
-    """Return True only when each loaded report has the same explicit date range."""
+def reports_share_period(periods, expected_period=None):
+    """Ensure loaded reports agree, optionally requiring the current selected range."""
     normalized = []
     for period in periods or []:
         if not isinstance(period, (tuple, list)) or len(period) != 2:
@@ -48,4 +48,15 @@ def reports_share_period(periods):
         if not isinstance(start, str) or not isinstance(end, str) or not start or not end:
             return False
         normalized.append((start, end))
-    return bool(normalized) and len(set(normalized)) == 1
+
+    if not normalized or len(set(normalized)) != 1:
+        return False
+
+    if expected_period is None:
+        return True
+    if not isinstance(expected_period, (tuple, list)) or len(expected_period) != 2:
+        return False
+    expected = tuple(expected_period)
+    if any(not isinstance(value, str) or not value for value in expected):
+        return False
+    return normalized[0] == expected

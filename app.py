@@ -1466,21 +1466,35 @@ with st.sidebar:
             for name, key, period in report_sources
             if key in st.session_state and not st.session_state[key].empty
         ]
+        loaded_periods = [period for _, _, period in loaded_reports]
+        current_selected_period = meta_date_range(
+            preset,
+            custom_start=custom_start,
+            custom_end=custom_end,
+        )
         if not loaded_reports:
             st.warning("Bajá al menos un canal que haya devuelto datos reales.")
-        elif not reports_share_period([period for _, _, period in loaded_reports]):
+        elif (
+            not reports_share_period(loaded_periods)
+            or not reports_share_period(
+                loaded_periods,
+                expected_period=current_selected_period,
+            )
+        ):
             period_details = ", ".join(
                 f"{name}: {period[0]} a {period[1]}"
                 if isinstance(period, (tuple, list)) and len(period) == 2
                 else f"{name}: período desconocido"
                 for name, _, period in loaded_reports
             )
-            for key in ("df_all", "gasto_all", "roas_all"):
+            for key in ("df_all", "df_all_period", "gasto_all", "roas_all"):
                 st.session_state.pop(key, None)
             st.error(
-                "No se unificaron los informes porque los períodos no coinciden "
-                "o falta la fecha de algún reporte. Volvé a descargar los canales "
-                "usando el mismo rango. " + period_details
+                "No se unificaron los informes porque los períodos no coinciden, "
+                "falta la fecha de algún reporte o el rango seleccionado cambió. "
+                "Volvé a descargar los canales usando el rango actual. "
+                f"Rango seleccionado: {current_selected_period[0]} a {current_selected_period[1]}. "
+                + period_details
             )
         else:
             frames = [report for _, report, _ in loaded_reports]
@@ -1501,6 +1515,7 @@ with st.sidebar:
                 else None
             )
             st.session_state["df_all"] = df_all
+            st.session_state["df_all_period"] = current_selected_period
             st.session_state["gasto_all"] = gasto_all
             st.session_state["roas_all"] = roas_all
             st.success("Informes unificados para un período común.")
@@ -1819,6 +1834,18 @@ st.markdown(
     + "</div>",
     unsafe_allow_html=True,
 )
+
+dashboard_current_period = meta_date_range(
+    preset,
+    custom_start=custom_start,
+    custom_end=custom_end,
+)
+if "df_all" in st.session_state and not reports_share_period(
+    [st.session_state.get("df_all_period")],
+    expected_period=dashboard_current_period,
+):
+    for key in ("df_all", "df_all_period", "gasto_all", "roas_all"):
+        st.session_state.pop(key, None)
 
 st.markdown('<div class="agency-section-heading" id="dashboard"><div class="agency-kicker">RESUMEN</div><h2>Dashboard ejecutivo</h2><p>Resumen de los informes cargados para el período seleccionado.</p></div>', unsafe_allow_html=True)
 st.caption(

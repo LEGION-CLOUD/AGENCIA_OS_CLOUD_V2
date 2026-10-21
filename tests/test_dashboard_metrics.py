@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from dashboard_metrics import count_unique_campaigns
+from dashboard_metrics import count_unique_campaigns, reports_share_period
 
 
 class UniqueCampaignCountTests(unittest.TestCase):
@@ -45,6 +45,30 @@ class UniqueCampaignCountTests(unittest.TestCase):
             ("2026-10-01", "2026-10-20"),
             ("2026-10-01", "2026-10-20"),
         ]))
+        self.assertTrue(
+            reports_share_period(
+                [
+                    ("2026-10-01", "2026-10-20"),
+                    ("2026-10-01", "2026-10-20"),
+                ],
+                expected_period=("2026-10-01", "2026-10-20"),
+            )
+        )
+        self.assertFalse(
+            reports_share_period(
+                [
+                    ("2026-10-01", "2026-10-20"),
+                    ("2026-10-01", "2026-10-20"),
+                ],
+                expected_period=("2026-09-21", "2026-10-20"),
+            )
+        )
+        self.assertFalse(
+            reports_share_period(
+                [("2026-10-01", "2026-10-20")],
+                expected_period=("2026-10-01", "2026-10-19"),
+            )
+        )
         self.assertFalse(reports_share_period([
             ("2026-10-01", "2026-10-20"),
             ("2026-09-21", "2026-10-20"),
