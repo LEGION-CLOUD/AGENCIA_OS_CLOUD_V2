@@ -16,6 +16,7 @@ TIKTOK_DATA_LEVEL = "AUCTION_CAMPAIGN"
 
 TIKTOK_REPORT_COLUMNS = [
     "Canal",
+    "Campaign ID",
     "Campaign",
     "Status",
     "Date",
@@ -113,6 +114,7 @@ def _normalize_report_row(item):
 
     return {
         "Canal": "TIKTOK",
+        "Campaign ID": str(dimensions.get("campaign_id")) if dimensions.get("campaign_id") is not None else None,
         "Campaign": metrics.get("campaign_name"),
         "Status": None,
         "Date": dimensions.get("stat_time_day"),

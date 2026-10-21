@@ -7,6 +7,7 @@ from urllib.parse import quote_plus
 import unicodedata
 import re
 from datetime import date, datetime, timedelta
+from dashboard_metrics import count_unique_campaigns
 from meta_ads import (
     CAMPAIGN_COLUMNS,
     MetaAdsError,
@@ -1567,6 +1568,11 @@ if "tiktok_report" in st.session_state:
     elif tiktok_report["status"] == "data":
         df_tiktok = st.session_state["df_tiktok"]
         st.success(f"TikTok Ads devolvió {len(df_tiktok)} filas de métricas.")
+        st.caption(
+            "Esta consulta de campaña usa gasto, impresiones y clics. "
+            "Conversiones, valor de conversión y ROAS no se solicitan en este informe y quedan sin dato; "
+            "no deben interpretarse como cero."
+        )
         st.dataframe(df_tiktok, use_container_width=True)
         st.download_button(
             "Descargar informe TIKTOK ADS (CSV)",
@@ -1799,7 +1805,10 @@ if "df_all" in st.session_state:
         if st.session_state["roas_all"] is not None
         else "No disponible"
     )
-    campanas_display = str(len(df_all))
+    campaign_count = count_unique_campaigns(df_all)
+    campanas_display = (
+        str(campaign_count) if campaign_count is not None else "No disponible"
+    )
 else:
     df_all = None
     gasto_display = "\u2014"
@@ -1808,7 +1817,7 @@ else:
 
 k1.metric("Gasto", gasto_display, help="Inversión de los informes consolidados")
 k2.metric("ROAS", roas_display, help="Retorno publicitario de los informes consolidados")
-k3.metric("Campa\u00f1as", campanas_display, help="Registros incluidos en el informe consolidado")
+k3.metric("Campa\u00f1as", campanas_display, help="Campañas únicas por plataforma; las filas diarias repetidas no se cuentan varias veces.")
 
 if df_all is not None:
     spend_by_platform = (

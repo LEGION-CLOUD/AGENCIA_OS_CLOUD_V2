@@ -35,6 +35,7 @@ _LICENSE_FINGERPRINT_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
 GOOGLE_CAMPAIGN_COLUMNS = [
     "Canal",
+    "Campaign ID",
     "Campaign",
     "Status",
     "Date",
@@ -438,6 +439,7 @@ def _campaign_row(row):
     revenue = _number(_field(metrics, "conversions_value", "conversionsValue"))
     return {
         "Canal": "GOOGLE",
+        "Campaign ID": str(campaign.get("id")) if campaign.get("id") is not None else None,
         "Campaign": campaign.get("name"),
         "Status": campaign.get("status"),
         "Date": segments.get("date"),
