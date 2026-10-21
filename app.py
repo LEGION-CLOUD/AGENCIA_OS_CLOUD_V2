@@ -1861,7 +1861,7 @@ k1, k2, k3 = st.columns(3)
 if "df_all" in st.session_state:
     df_all = st.session_state["df_all"]
     gasto_display = (
-        f"${st.session_state['gasto_all']:,.0f}"
+        f"{st.session_state['gasto_all']:,.0f}"
         if st.session_state["gasto_all"] is not None
         else "No disponible"
     )
@@ -1880,7 +1880,7 @@ else:
     roas_display = "\u2014"
     campanas_display = "\u2014"
 
-k1.metric("Gasto", gasto_display, help="Suma de los importes reportados. No hay conversión automática si las cuentas usan monedas distintas.")
+k1.metric("Gasto reportado", gasto_display, help="Suma de los importes en sus monedas de origen. No hay conversión automática entre monedas.")
 k2.metric("ROAS", roas_display, help="Indicador orientativo: las plataformas pueden usar modelos de atribución distintos; sólo se calcula si todos los informes aportan Revenue.")
 k3.metric("Campa\u00f1as", campanas_display, help="Campañas únicas por plataforma; las filas diarias repetidas no se cuentan varias veces.")
 
@@ -1892,7 +1892,8 @@ if df_all is not None:
         .sort_values(ascending=False)
     )
     if len(spend_by_platform) > 1:
-        st.markdown("#### Inversión por plataforma")
+        st.markdown("#### Importes reportados por plataforma")
+        st.caption("Compará estos importes solo después de confirmar que todas las cuentas usan la misma moneda; Agencia OS no los convierte entre divisas.")
         st.bar_chart(spend_by_platform, height=240)
     st.markdown("#### Rendimiento consolidado")
     st.dataframe(df_all, width="stretch", hide_index=True)
