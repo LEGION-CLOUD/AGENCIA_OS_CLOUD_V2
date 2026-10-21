@@ -6,6 +6,65 @@ import license_security
 
 
 class LicenseSecurityTests(unittest.TestCase):
+    def test_resolve_active_license_by_fingerprint_without_exposing_key(self):
+        from datetime import datetime
+
+        key = "LEGION-TEST-ACTIVE"
+        record = {
+            "client": "Cliente",
+            "created": "2026-10-01T00:00:00",
+            "expires": "2026-12-31T00:00:00",
+            "max_accounts": 3,
+            "active": True,
+        }
+        resolved = license_security.resolve_active_license_for_fingerprint(
+            {key: record},
+            license_security.license_key_fingerprint(key),
+            now=datetime(2026, 10, 21, 12, 0, 0),
+        )
+        self.assertEqual(resolved, record)
+        self.assertIsNot(resolved, record)
+
+    def test_resolve_active_license_rejects_inactive_expired_missing_and_invalid(self):
+        from datetime import datetime
+
+        now = datetime(2026, 10, 21, 12, 0, 0)
+        active_key = "LEGION-ACTIVE"
+        inactive_key = "LEGION-INACTIVE"
+        expired_key = "LEGION-EXPIRED"
+        licenses = {
+            active_key: {"active": True, "expires": "2026-12-31T00:00:00"},
+            inactive_key: {"active": False, "expires": "2026-12-31T00:00:00"},
+            expired_key: {"active": True, "expires": "2026-10-20T00:00:00"},
+        }
+
+        self.assertIsNotNone(license_security.resolve_active_license_for_fingerprint(
+            licenses, license_security.license_key_fingerprint(active_key), now=now
+        ))
+        self.assertIsNone(license_security.resolve_active_license_for_fingerprint(
+            licenses, license_security.license_key_fingerprint(inactive_key), now=now
+        ))
+        self.assertIsNone(license_security.resolve_active_license_for_fingerprint(
+            licenses, license_security.license_key_fingerprint(expired_key), now=now
+        ))
+        self.assertIsNone(license_security.resolve_active_license_for_fingerprint(
+            licenses, license_security.license_key_fingerprint("MISSING"), now=now
+        ))
+        self.assertIsNone(license_security.resolve_active_license_for_fingerprint(
+            licenses, "not-a-fingerprint", now=now
+        ))
+
+    def test_resolve_active_license_rejects_malformed_expiration(self):
+        from datetime import datetime
+
+        key = "LEGION-BAD-EXPIRATION"
+        result = license_security.resolve_active_license_for_fingerprint(
+            {key: {"active": True, "expires": "not a date"}},
+            license_security.license_key_fingerprint(key),
+            now=datetime(2026, 10, 21),
+        )
+        self.assertIsNone(result)
+
     def test_fingerprint_uses_sha256_and_normalizes_key(self):
         expected = "b5d4045c3f466fa91fe2cc6abe79232a1a57cdf104f7a26e716e0a1e2789df78"
         self.assertEqual(license_security.license_key_fingerprint(" abc "), expected)
