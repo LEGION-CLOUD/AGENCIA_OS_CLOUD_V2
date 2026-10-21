@@ -1,44 +1,63 @@
-"""Runtime smoke tests for the Streamlit entrypoint."""
+"""Runtime smoke test for the Streamlit app entrypoint."""
 
 import os
+import subprocess
+import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
-
-from streamlit.testing.v1 import AppTest
 
 
 class AppRuntimeSmokeTests(unittest.TestCase):
-    def test_entrypoint_renders_the_access_screen_without_secrets(self):
+    def test_entrypoint_renders_access_screen_without_secrets(self):
         app_path = Path(__file__).resolve().parents[1] / "app.py"
-        isolated_environment = {
-            "ADMIN_PASSWORD": "",
-            "SUPABASE_URL": "",
-            "SUPABASE_SECRET_KEY": "",
-            "GOOGLE_OAUTH_CLIENT_ID": "",
-            "GOOGLE_OAUTH_CLIENT_SECRET": "",
-            "GOOGLE_OAUTH_REDIRECT_URI": "",
-        }
+        runner = r"""
+import sys
+from streamlit.testing.v1 import AppTest
 
-        with patch.dict(os.environ, isolated_environment, clear=False):
-            app = AppTest.from_file(str(app_path), default_timeout=20).run(timeout=20)
+app = AppTest.from_file(sys.argv[1], default_timeout=20).run(timeout=20)
+if app.exception:
+    raise AssertionError(
+        "Streamlit entrypoint raised: "
+        + "\\n".join(str(error.value) for error in app.exception)
+    )
+rendered_text = "\\n".join(
+    [element.value for element in app.title]
+    + [element.value for element in app.header]
+    + [element.value for element in app.subheader]
+    + [element.value for element in app.markdown]
+)
+assert "AGENCIA OS" in rendered_text, "App title wasn't rendered"
+assert any(widget.label == "Clave" for widget in app.text_input), (
+    "The license access input wasn't rendered"
+)
+"""
+        environment = os.environ.copy()
+        for name in (
+            "ADMIN_PASSWORD",
+            "SUPABASE_URL",
+            "SUPABASE_SECRET_KEY",
+            "GOOGLE_OAUTH_CLIENT_ID",
+            "GOOGLE_OAUTH_CLIENT_SECRET",
+            "GOOGLE_OAUTH_REDIRECT_URI",
+        ):
+            environment[name] = ""
 
+        result = subprocess.run(
+            [sys.executable, "-c", runner, str(app_path)],
+            cwd=str(app_path.parent),
+            env=environment,
+            text=True,
+            capture_output=True,
+            timeout=45,
+            check=False,
+        )
         self.assertEqual(
-            len(app.exception),
+            result.returncode,
             0,
-            msg="Streamlit entrypoint raised: "
-            + "\n".join(str(error.value) for error in app.exception),
-        )
-        rendered_text = "\n".join(
-            [element.value for element in app.title]
-            + [element.value for element in app.header]
-            + [element.value for element in app.subheader]
-            + [element.value for element in app.markdown]
-        )
-        self.assertIn("AGENCIA OS", rendered_text)
-        self.assertTrue(
-            any(widget.label == "Clave" for widget in app.text_input),
-            msg="The access form did not render its license input.",
+            msg="Isolated Streamlit smoke process failed.\n"
+            + result.stdout[-5000:]
+            + "\n"
+            + result.stderr[-5000:],
         )
 
 
