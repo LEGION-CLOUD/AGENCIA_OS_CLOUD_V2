@@ -1,19 +1,19 @@
-name: License security tests
+name: Application regression and security tests
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - "app.py"
-      - "license_security.py"
-      - "tests/test_license_security.py"
+      - "*.py"
+      - "tests/**"
+      - "requirements.txt"
       - ".github/workflows/license-security-tests.yml"
   push:
     branches: [main]
     paths:
-      - "app.py"
-      - "license_security.py"
-      - "tests/test_license_security.py"
+      - "*.py"
+      - "tests/**"
+      - "requirements.txt"
       - ".github/workflows/license-security-tests.yml"
 
 jobs:

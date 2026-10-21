@@ -34,7 +34,7 @@ class TikTokReportTests(unittest.TestCase):
         }
         return response
 
-    def row(self, campaign, spend, impressions, report_date="2026-10-14"):
+    def row(self, campaign, spend, impressions, clicks="0", report_date="2026-10-14"):
         return {
             "dimensions": {
                 "campaign_id": "123",
@@ -44,6 +44,7 @@ class TikTokReportTests(unittest.TestCase):
                 "campaign_name": campaign,
                 "spend": spend,
                 "impressions": impressions,
+                "clicks": clicks,
             },
         }
 
@@ -64,6 +65,9 @@ class TikTokReportTests(unittest.TestCase):
         self.assertEqual(report.iloc[0]["Campaign"], "Campaign fixture")
         self.assertEqual(report.iloc[0]["Spend"], 125.5)
         self.assertEqual(report.iloc[0]["Impressions"], 3400)
+        self.assertEqual(report.iloc[0]["Clicks"], 0)
+        self.assertEqual(report.iloc[0]["CTR"], 0)
+        self.assertIsNone(report.iloc[0]["CPC"])
         self.assertIsNone(report.iloc[0]["Revenue"])
         args, kwargs = self.get.call_args
         self.assertEqual(args[0], "https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/")
@@ -73,13 +77,41 @@ class TikTokReportTests(unittest.TestCase):
         self.assertEqual(params["report_type"], "BASIC")
         self.assertEqual(params["data_level"], "AUCTION_CAMPAIGN")
         self.assertEqual(json.loads(params["dimensions"]), ["campaign_id", "stat_time_day"])
-        self.assertEqual(json.loads(params["metrics"]), ["campaign_name", "spend", "impressions"])
+        self.assertEqual(json.loads(params["metrics"]), ["campaign_name", "spend", "impressions", "clicks"])
         self.assertEqual(params["start_date"], "2026-10-01")
         self.assertEqual(params["end_date"], "2026-10-14")
         self.assertEqual(params["page_size"], 1000)
         self.assertFalse(kwargs["allow_redirects"])
         self.assertNotIn("json", kwargs)
         self.assertNotIn(self.token, str(params))
+
+    def test_report_calculates_click_metrics_and_handles_zero_denominators(self):
+        self.get.return_value = self.response([
+            self.row("Measured campaign", "125.50", "3400", clicks="68"),
+            self.row("No impressions", "12.00", "0", clicks="0"),
+            self.row("No clicks", "12.00", "100", clicks="0"),
+            self.row("Low impression suppression", "2.00", "<5", clicks="1"),
+        ])
+
+        report = fetch_campaign_report(
+            self.token,
+            "123456789",
+            ("2026-10-01", "2026-10-14"),
+            get=self.get,
+        )
+
+        first = report.iloc[0]
+        self.assertAlmostEqual(first["CTR"], 2.0)
+        self.assertAlmostEqual(first["CPC"], 125.50 / 68)
+        no_impressions = report.iloc[1]
+        self.assertTrue(pd.isna(no_impressions["CTR"]))
+        self.assertTrue(pd.isna(no_impressions["CPC"]))
+        no_clicks = report.iloc[2]
+        self.assertEqual(no_clicks["CTR"], 0)
+        self.assertTrue(pd.isna(no_clicks["CPC"]))
+        suppressed = report.iloc[3]
+        self.assertTrue(pd.isna(suppressed["Impressions"]))
+        self.assertTrue(pd.isna(suppressed["CTR"]))
 
     def test_pagination_fetches_each_page_once(self):
         self.get.side_effect = [

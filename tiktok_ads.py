@@ -30,7 +30,7 @@ TIKTOK_REPORT_COLUMNS = [
 ]
 
 TIKTOK_CAMPAIGN_DIMENSIONS = ["campaign_id", "stat_time_day"]
-TIKTOK_CAMPAIGN_METRICS = ["campaign_name", "spend", "impressions"]
+TIKTOK_CAMPAIGN_METRICS = ["campaign_name", "spend", "impressions", "clicks"]
 
 
 class TikTokAdsError(Exception):
@@ -97,16 +97,30 @@ def _normalize_report_row(item):
     if not isinstance(dimensions, dict) or not isinstance(metrics, dict):
         raise TikTokAdsError("TikTok devolvió una fila en un formato no válido.")
 
+    spend = _number(metrics.get("spend"))
+    impressions = _optional_int(metrics.get("impressions"))
+    clicks = _optional_int(metrics.get("clicks"))
+    ctr = (
+        (float(clicks) / float(impressions)) * 100
+        if clicks is not None and impressions is not None and impressions > 0
+        else None
+    )
+    cpc = (
+        spend / float(clicks)
+        if spend is not None and clicks is not None and clicks > 0
+        else None
+    )
+
     return {
         "Canal": "TIKTOK",
         "Campaign": metrics.get("campaign_name"),
         "Status": None,
         "Date": dimensions.get("stat_time_day"),
-        "Spend": _number(metrics.get("spend")),
-        "Impressions": _optional_int(metrics.get("impressions")),
-        "Clicks": None,
-        "CTR": None,
-        "CPC": None,
+        "Spend": spend,
+        "Impressions": impressions,
+        "Clicks": clicks,
+        "CTR": ctr,
+        "CPC": cpc,
         "Conversions": None,
         "Revenue": None,
         "ROAS": None,
