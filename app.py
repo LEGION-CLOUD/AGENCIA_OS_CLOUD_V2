@@ -48,8 +48,8 @@ from competitor_store import (
 from ad_copy import generate_ad_proposals
 from license_security import (
     build_license_rotation_plan,
+    create_license_record,
     find_exposed_license_keys,
-    generate_license_key,
 )
 from competitor_tools import (
     generate_ad_variations,
@@ -1098,15 +1098,33 @@ if is_admin:
                 st.rerun()
 
         c1,c2,c3=st.columns(3)
-        with c1: cname=st.text_input("Cliente","Nuevo")
-        with c2: days=st.number_input("Días",value=90)
-        with c3: max_acc=st.number_input("Max",value=5)
+        with c1:
+            cname=st.text_input("Cliente","Nuevo")
+        with c2:
+            days=st.number_input("Días",min_value=1,max_value=36500,value=90,step=1)
+        with c3:
+            max_acc=st.number_input(
+                "Máximo de cuentas",
+                min_value=1,
+                max_value=2147483647,
+                value=5,
+                step=1,
+            )
         if st.button("GENERAR",type="primary",use_container_width=True):
-            new_key=generate_license_key()
-            exp=datetime.now()+timedelta(days=days)
-            licenses[new_key]={"client":cname,"created":datetime.now().isoformat(),"expires":exp.isoformat(),"max_accounts":max_acc,"active":True}
-            save_licenses(licenses)
-            st.code(new_key)
+            try:
+                new_key, new_license = create_license_record(
+                    cname,
+                    days,
+                    max_acc,
+                    existing_keys=licenses,
+                )
+            except (RuntimeError, ValueError) as exc:
+                st.warning(str(exc))
+            else:
+                licenses[new_key] = new_license
+                save_licenses(licenses)
+                st.success("Licencia creada correctamente.")
+                st.code(new_key)
 
         st.dataframe(
             pd.DataFrame.from_dict(licenses, orient="index"),
