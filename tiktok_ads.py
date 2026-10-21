@@ -7,7 +7,7 @@ from io import BytesIO
 import pandas as pd
 import requests
 
-from safe_csv import dataframe_to_csv_bytes
+from safe_csv import dataframe_to_csv_bytes, dataframe_to_excel_bytes
 
 
 TIKTOK_API_BASE_URL = "https://business-api.tiktok.com/open_api/v1.3"
@@ -230,6 +230,4 @@ def export_report_csv(report):
 
 
 def export_report_excel(report):
-    output = BytesIO()
-    report.to_excel(output, index=False, engine="openpyxl")
-    return output.getvalue()
+    return dataframe_to_excel_bytes(report)
