@@ -2955,6 +2955,96 @@ with t1:
         ]
         st.dataframe(pd.DataFrame(display_rows), width="stretch", hide_index=True)
 
+        with st.expander("Eliminar una observación guardada", expanded=False):
+            if not competitor_storage_ready:
+                st.warning(
+                    "La eliminación está deshabilitada hasta confirmar la conexión "
+                    "con Supabase para la licencia activa."
+                )
+            elif not filtered_observations:
+                st.info("No hay observaciones que coincidan con la búsqueda actual.")
+            else:
+                deletion_labels = {
+                    item["id"]: (
+                        f'{item["brand"]} · {item["platform"]} · '
+                        f'{item["observed_on"]} · {item["headline"] or "Sin titular"}'
+                    )
+                    for item in filtered_observations
+                }
+                deletion_id = st.selectbox(
+                    "Observación que se va a eliminar",
+                    options=list(deletion_labels),
+                    format_func=lambda value: deletion_labels[value],
+                    key=f"spy_delete_observation_id_{tenant_id}",
+                )
+                confirm_deletion = st.checkbox(
+                    "Confirmo que quiero eliminar únicamente esta observación.",
+                    key=f"spy_delete_observation_confirm_{tenant_id}",
+                )
+                if st.button(
+                    "ELIMINAR OBSERVACIÓN SELECCIONADA",
+                    key=f"spy_delete_observation_button_{tenant_id}",
+                    disabled=not competitor_storage_ready,
+                    type="secondary",
+                    use_container_width=True,
+                ):
+                    if not confirm_deletion:
+                        st.warning("Marcá la confirmación antes de eliminar.")
+                    elif (
+                        not tenant_id
+                        or st.session_state.get(
+                            "competitor_observations_loaded_tenant_v1"
+                        ) != tenant_id
+                    ):
+                        st.error(
+                            "La licencia activa cambió o no está confirmada. "
+                            "No se modificó ningún registro."
+                        )
+                    else:
+                        current_records = list(
+                            st.session_state.get("competitor_observations_v1", [])
+                        )
+                        candidate_records = [
+                            item for item in current_records
+                            if item.get("id") != deletion_id
+                        ]
+                        if len(candidate_records) == len(current_records):
+                            st.warning(
+                                "No se encontró el registro seleccionado. "
+                                "No se modificó ningún registro."
+                            )
+                        else:
+                            try:
+                                save_observations(
+                                    SUPABASE_URL,
+                                    SUPABASE_SECRET_KEY,
+                                    tenant_id,
+                                    candidate_records,
+                                )
+                            except CompetitorStoreError as exc:
+                                st.error(
+                                    "Supabase no confirmó la eliminación. "
+                                    f"Los registros en pantalla se conservaron: {exc}"
+                                )
+                            else:
+                                st.session_state["competitor_observations_v1"] = (
+                                    candidate_records
+                                )
+                                st.session_state[
+                                    "competitor_observations_unsaved_v1"
+                                ] = False
+                                analysis = st.session_state.get(
+                                    "spy_saved_observation_analysis", {}
+                                )
+                                if analysis.get("id") == deletion_id:
+                                    st.session_state.pop(
+                                        "spy_saved_observation_analysis", None
+                                    )
+                                st.success(
+                                    "Observación eliminada y cambio guardado en Supabase."
+                                )
+                                st.rerun()
+
         if len(filtered_observations) >= 2:
             labels = {
                 item["id"]: (
