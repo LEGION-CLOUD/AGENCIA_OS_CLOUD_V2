@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pandas as pd
 import requests
+from openpyxl import load_workbook
 
 from app import invalidate_license_session, start_license_session
 from tiktok_ads import (
@@ -264,6 +265,28 @@ class TikTokReportTests(unittest.TestCase):
             parsed.iloc[0]["Campaign"],
             '\'=HYPERLINK("https://example.invalid", "click")',
         )
+        self.assertEqual(parsed.iloc[0]["Spend"], 12.5)
+
+    def test_excel_export_keeps_formula_like_campaign_names_as_text(self):
+        from openpyxl import load_workbook
+
+        formula_like = '=HYPERLINK("https://example.invalid", "click")'
+        report = pd.DataFrame([{
+            "Canal": "TIKTOK",
+            "Campaign": formula_like,
+            "Spend": 12.5,
+        }])
+
+        payload = export_report_excel(report)
+        workbook = load_workbook(BytesIO(payload), data_only=False)
+        worksheet = workbook.active
+        campaign_cell = worksheet["B2"]
+        self.assertEqual(campaign_cell.data_type, "s")
+        self.assertEqual(campaign_cell.value, formula_like)
+        self.assertEqual(worksheet["C2"].value, 12.5)
+
+        parsed = pd.read_excel(BytesIO(payload))
+        self.assertEqual(parsed.iloc[0]["Campaign"], formula_like)
         self.assertEqual(parsed.iloc[0]["Spend"], 12.5)
 
     def test_config_repr_does_not_include_access_token(self):
