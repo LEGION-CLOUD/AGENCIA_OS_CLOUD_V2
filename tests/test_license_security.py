@@ -117,6 +117,60 @@ class LicenseSecurityTests(unittest.TestCase):
             "max_accounts": 3,
         }])
 
+    def test_new_license_record_validates_and_preserves_expected_metadata(self):
+        from datetime import datetime, timedelta
+
+        now = datetime(2026, 10, 21, 12, 0, 0)
+        key, record = license_security.create_license_record(
+            "  Lula  ",
+            90,
+            3,
+            existing_keys={"LEGION-2026-EXISTING"},
+            key_factory=lambda: "LEGION-2026-NEW",
+            now=now,
+        )
+
+        self.assertEqual(key, "LEGION-2026-NEW")
+        self.assertEqual(record["client"], "Lula")
+        self.assertEqual(record["created"], now.isoformat())
+        self.assertEqual(record["expires"], (now + timedelta(days=90)).isoformat())
+        self.assertEqual(record["max_accounts"], 3)
+        self.assertTrue(record["active"])
+
+    def test_new_license_record_rejects_invalid_client_duration_and_account_limit(self):
+        from datetime import datetime
+
+        valid = {"key_factory": lambda: "NEW-KEY", "now": datetime(2026, 10, 21)}
+        invalid_cases = [
+            ("", 90, 3, "nombre del cliente"),
+            ("Cliente", 0, 3, "duración"),
+            ("Cliente", -1, 3, "duración"),
+            ("Cliente", 1.5, 3, "duración"),
+            ("Cliente", 36501, 3, "máximo permitido"),
+            ("Cliente", 90, 0, "máximo de cuentas"),
+            ("Cliente", 90, 1.5, "máximo de cuentas"),
+        ]
+        for client, days, accounts, message in invalid_cases:
+            with self.subTest(client=client, days=days, accounts=accounts):
+                with self.assertRaisesRegex(ValueError, message):
+                    license_security.create_license_record(
+                        client, days, accounts, **valid
+                    )
+
+    def test_new_license_record_retries_existing_key_collisions(self):
+        from datetime import datetime
+
+        candidates = iter(["EXISTING", "NEW-UNIQUE"])
+        key, _ = license_security.create_license_record(
+            "Cliente",
+            30,
+            1,
+            existing_keys={"EXISTING"},
+            key_factory=lambda: next(candidates),
+            now=datetime(2026, 10, 21),
+        )
+        self.assertEqual(key, "NEW-UNIQUE")
+
     def test_rotation_rejects_key_collision(self):
         old_key = "TEST-EXPOSED-LICENSE"
         fingerprint = license_security.license_key_fingerprint(old_key)

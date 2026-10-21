@@ -4,8 +4,9 @@ This module stores fingerprints, never the plaintext values, of license keys
 that were exposed in the repository's public history.
 """
 import hashlib
+import math
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 EXPOSED_LICENSE_FINGERPRINTS = frozenset({
@@ -38,6 +39,70 @@ def generate_license_key(year=None):
     """Generate a high-entropy key that is safe to normalize to uppercase."""
     year = int(year or datetime.now().year)
     return f"LEGION-{year}-{secrets.token_hex(24).upper()}"
+
+
+def _positive_integer(value, label, *, maximum=None):
+    """Parse a positive integer without silently truncating decimals or booleans."""
+    if isinstance(value, bool):
+        raise ValueError(f"{label} debe ser un entero mayor que cero.")
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{label} debe ser un entero mayor que cero.") from None
+    if not math.isfinite(numeric) or not numeric.is_integer() or numeric < 1:
+        raise ValueError(f"{label} debe ser un entero mayor que cero.")
+    if maximum is not None and numeric > maximum:
+        raise ValueError(f"{label} supera el máximo permitido ({maximum}).")
+    return int(numeric)
+
+
+def create_license_record(
+    client,
+    days,
+    max_accounts,
+    *,
+    existing_keys=(),
+    key_factory=None,
+    now=None,
+):
+    """Build validated license metadata and a unique secure key without persisting it."""
+    normalized_client = str(client or "").strip()
+    if not normalized_client:
+        raise ValueError("Ingresá el nombre del cliente antes de crear la licencia.")
+    duration_days = _positive_integer(days, "La duración", maximum=36500)
+    account_limit = _positive_integer(
+        max_accounts,
+        "El máximo de cuentas",
+        maximum=2147483647,
+    )
+
+    factory = key_factory or generate_license_key
+    reserved = {str(key).strip().upper() for key in (existing_keys or [])}
+    new_key = None
+    for _ in range(5):
+        candidate = str(factory()).strip().upper()
+        if candidate and candidate not in reserved:
+            new_key = candidate
+            break
+    if new_key is None:
+        raise RuntimeError("No se pudo generar una clave nueva y única.")
+
+    created_at = now or datetime.now()
+    if not isinstance(created_at, datetime):
+        raise ValueError("La fecha de creación de la licencia no es válida.")
+    try:
+        expires_at = created_at + timedelta(days=duration_days)
+    except OverflowError:
+        raise ValueError("La duración de la licencia supera el rango de fechas permitido.") from None
+
+    record = {
+        "client": normalized_client,
+        "created": created_at.isoformat(),
+        "expires": expires_at.isoformat(),
+        "max_accounts": account_limit,
+        "active": True,
+    }
+    return new_key, record
 
 
 def build_license_rotation_plan(licenses, key_factory=generate_license_key):
