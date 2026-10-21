@@ -59,6 +59,7 @@ class MetaInsightsTests(unittest.TestCase):
     def test_historical_campaign_results_are_mapped_and_exact_dates_sent(self):
         self.get.return_value = self.response({
             "data": [{
+                "campaign_id": "meta-campaign-555",
                 "campaign_name": "Campaign from mocked historical fixture",
                 "spend": "125.50",
                 "impressions": "3400",
@@ -79,6 +80,7 @@ class MetaInsightsTests(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result.iloc[0]["Canal"], "META")
+        self.assertEqual(result.iloc[0]["Campaign ID"], "meta-campaign-555")
         self.assertEqual(result.iloc[0]["Spend"], 125.5)
         self.assertEqual(result.iloc[0]["Impressions"], 3400)
         self.assertEqual(result.iloc[0]["Conversions"], 3.0)
@@ -105,7 +107,7 @@ class MetaInsightsTests(unittest.TestCase):
             )
 
         self.assertTrue(result.empty)
-        self.assertEqual(len(result.columns), 9)
+        self.assertEqual(len(result.columns), 10)
         diagnostic = "\n".join(captured.output)
         self.assertIn("account=act_123456", diagnostic)
         self.assertIn("since=2026-09-15 until=2026-10-14", diagnostic)
