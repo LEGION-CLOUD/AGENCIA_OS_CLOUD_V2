@@ -134,7 +134,7 @@ def fetch_meta_insights(token, ad_account, period, *, get=None):
                 raise MetaAdsError("Meta devolvió una página repetida; se detuvo la consulta.")
             seen_pages.add(url)
 
-            response = get(url, params=params, timeout=30)
+            response = get(url, params=params, timeout=30, allow_redirects=False)
             try:
                 data = response.json()
             except (ValueError, TypeError):
