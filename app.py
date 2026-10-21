@@ -7,7 +7,7 @@ from urllib.parse import quote_plus
 import unicodedata
 import re
 from datetime import date, datetime, timedelta
-from dashboard_metrics import count_unique_campaigns
+from dashboard_metrics import count_unique_campaigns, reports_share_period
 from meta_ads import (
     CAMPAIGN_COLUMNS,
     MetaAdsError,
@@ -1448,13 +1448,35 @@ with st.sidebar:
     st.divider()
     st.markdown('<div class="agency-sidebar-section">ACCIONES</div>', unsafe_allow_html=True)
     if st.button("UNIFICAR TODO",type="primary",use_container_width=True):
-        frames=[
-            st.session_state[key]
-            for key in ["df_meta","df_google","df_tiktok"]
+        report_sources = (
+            ("META", "df_meta", st.session_state.get("meta_query", {}).get("period")),
+            ("GOOGLE", "df_google", st.session_state.get("google_report", {}).get("period")),
+            ("TIKTOK", "df_tiktok", st.session_state.get("tiktok_report", {}).get("period")),
+        )
+        loaded_reports = [
+            (name, st.session_state[key], period)
+            for name, key, period in report_sources
             if key in st.session_state and not st.session_state[key].empty
         ]
-        if frames:
-            df_all=pd.concat(frames,ignore_index=True)
+        if not loaded_reports:
+            st.warning("Bajá al menos un canal que haya devuelto datos reales.")
+        elif not reports_share_period([period for _, _, period in loaded_reports]):
+            period_details = ", ".join(
+                f"{name}: {period[0]} a {period[1]}"
+                if isinstance(period, (tuple, list)) and len(period) == 2
+                else f"{name}: período desconocido"
+                for name, _, period in loaded_reports
+            )
+            for key in ("df_all", "gasto_all", "roas_all"):
+                st.session_state.pop(key, None)
+            st.error(
+                "No se unificaron los informes porque los períodos no coinciden "
+                "o falta la fecha de algún reporte. Volvé a descargar los canales "
+                "usando el mismo rango. " + period_details
+            )
+        else:
+            frames = [report for _, report, _ in loaded_reports]
+            df_all = pd.concat(frames, ignore_index=True)
             gasto_all = (
                 df_all["Spend"].sum()
                 if df_all["Spend"].notna().all()
@@ -1470,11 +1492,11 @@ with st.sidebar:
                 if revenue_all is not None and gasto_all is not None and gasto_all > 0
                 else None
             )
-            st.session_state["df_all"]=df_all
-            st.session_state["gasto_all"]=gasto_all
-            st.session_state["roas_all"]=roas_all
-            st.success("Unificado"); st.rerun()
-        else: st.warning("Bajá un canal que haya devuelto datos reales.")
+            st.session_state["df_all"] = df_all
+            st.session_state["gasto_all"] = gasto_all
+            st.session_state["roas_all"] = roas_all
+            st.success("Informes unificados para un período común.")
+            st.rerun()
 
 st.markdown(
     """
