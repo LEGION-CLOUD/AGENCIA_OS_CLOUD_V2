@@ -8,7 +8,7 @@ import requests
 
 
 CAMPAIGN_COLUMNS = [
-    "Canal", "Campaign", "Spend", "Impressions",
+    "Canal", "Campaign ID", "Campaign", "Spend", "Impressions",
     "CTR", "CPC", "Conversions", "Revenue", "ROAS"
 ]
 
@@ -114,7 +114,7 @@ def fetch_meta_insights(token, ad_account, period, *, get=None):
         "level": "campaign",
         "time_range": json.dumps({"since": since, "until": until}),
         "fields": (
-            "campaign_name,spend,impressions,clicks,ctr,cpc,"
+            "campaign_id,campaign_name,spend,impressions,clicks,ctr,cpc,"
             "actions,action_values"
         ),
         "limit": 500,
@@ -214,6 +214,7 @@ def fetch_meta_insights(token, ad_account, period, *, get=None):
                 revenue = _purchase_value(item.get("action_values"), purchase_types)
                 rows.append({
                     "Canal": "META",
+                    "Campaign ID": item.get("campaign_id"),
                     "Campaign": item.get("campaign_name"),
                     "Spend": spend,
                     "Impressions": int(impressions) if impressions is not None else None,
