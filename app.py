@@ -1300,7 +1300,22 @@ if not st.session_state["license_valid"]:
                     lic_input
                 )
                 st.session_state["_license_last_checked_at"] = datetime.now().timestamp()
-                tenant_candidates = tenant_id_candidates_for_license(info, lic_input)
+                previous_license_keys = [
+                    known_key
+                    for known_key, known_record in licenses.items()
+                    if (
+                        not known_record.get("active", True)
+                        and str(known_record.get("client") or "").strip()
+                        == str(info.get("client") or "").strip()
+                        and str(known_record.get("created") or "").strip()
+                        == str(info.get("created") or "").strip()
+                    )
+                ]
+                tenant_candidates = tenant_id_candidates_for_license(
+                    info,
+                    lic_input,
+                    previous_license_keys=previous_license_keys,
+                )
                 st.session_state["competitor_tenant_candidates_v1"] = tenant_candidates
                 st.session_state["competitor_tenant_id"] = tenant_candidates[0]
                 if google_config is not None:

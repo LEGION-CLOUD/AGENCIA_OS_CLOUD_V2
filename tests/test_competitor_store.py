@@ -100,6 +100,50 @@ class CompetitorStoreTests(unittest.TestCase):
         self.assertTrue(all(len(value) == 64 for value in candidates))
         self.assertNotEqual(candidates[1], candidates[2])
 
+    def test_candidates_include_hashes_for_previous_rotated_keys_only(self):
+        previous_key = "LEGION-OLD-ROTATED-KEY"
+        candidates = tenant_id_candidates_for_license(
+            LICENSE,
+            "LEGION-NEW-ACTIVE-KEY",
+            previous_license_keys=[previous_key, "", None],
+        )
+        previous_hash = hashlib.sha256(previous_key.encode("utf-8")).hexdigest()
+        self.assertIn(previous_hash, candidates)
+        self.assertNotIn(previous_key, candidates)
+        self.assertTrue(all(
+            len(candidate) == 64
+            and all(character in "0123456789abcdef" for character in candidate)
+            for candidate in candidates
+        ))
+
+    def test_load_resolves_observations_saved_under_a_rotated_license_hash(self):
+        previous_key = "LEGION-OLD-ROTATED-KEY"
+        previous_tenant = hashlib.sha256(previous_key.encode("utf-8")).hexdigest()
+        candidates = tenant_id_candidates_for_license(
+            LICENSE,
+            "LEGION-NEW-ACTIVE-KEY",
+            previous_license_keys=[previous_key],
+        )
+        record = create_observation(RECORD)
+
+        class PreviousKeyTenantHttp:
+            def get(self, url, **kwargs):
+                asked = kwargs["params"]["tenant_id"].removeprefix("eq.")
+                if asked == previous_tenant:
+                    return FakeResponse(
+                        [{"tenant_id": previous_tenant, "observations": [record]}]
+                    )
+                return FakeResponse([])
+
+        resolved, observations = load_observations_for_tenants(
+            "https://example.supabase.co",
+            "server-only-key",
+            candidates,
+            http=PreviousKeyTenantHttp(),
+        )
+        self.assertEqual(resolved, previous_tenant)
+        self.assertEqual(observations, [record])
+
     def test_load_resolves_existing_legacy_tenant_hash(self):
         candidates = tenant_id_candidates_for_license(LICENSE)
         legacy_tenant = candidates[1]

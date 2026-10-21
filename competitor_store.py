@@ -52,8 +52,10 @@ class CompetitorStoreError(RuntimeError):
     """Error de persistencia del Espía sin exponer secretos de servidor."""
 
 
-def tenant_id_candidates_for_license(license_info, license_key=None):
-    """Return the primary license-key hash and known legacy tenant hash variants."""
+def tenant_id_candidates_for_license(
+    license_info, license_key=None, previous_license_keys=None
+):
+    """Return current, previously rotated, and prototype tenant hash variants."""
     if not isinstance(license_info, dict):
         raise ValueError("No se pudo identificar la licencia del Espía.")
 
@@ -78,6 +80,20 @@ def tenant_id_candidates_for_license(license_info, license_key=None):
         # Also try exact-input hashing for compatibility with an earlier patch.
         candidates.append(
             hashlib.sha256(license_key.strip().encode("utf-8")).hexdigest()
+        )
+
+    # Preserve access to observations stored under a previous key when that key
+    # was rotated. The caller supplies only inactive keys with the same stable
+    # client/created identity; only SHA-256 hashes are used as tenant candidates.
+    for previous_key in previous_license_keys or []:
+        if not isinstance(previous_key, str) or not previous_key.strip():
+            continue
+        normalized_previous_key = previous_key.strip().upper()
+        candidates.append(
+            hashlib.sha256(normalized_previous_key.encode("utf-8")).hexdigest()
+        )
+        candidates.append(
+            hashlib.sha256(previous_key.strip().encode("utf-8")).hexdigest()
         )
 
     # Compatibility with the first local prototype: client + created.
