@@ -1208,6 +1208,14 @@ LICENSE_SCOPED_SESSION_KEYS = (
 def clear_license_scoped_session(session_state):
     for key in LICENSE_SCOPED_SESSION_KEYS:
         session_state.pop(key, None)
+    for key in list(session_state.keys()):
+        if key.startswith((
+            "spy_delete_observation_id_",
+            "spy_delete_observation_confirm_",
+            "spy_delete_observation_button_",
+        )):
+            session_state.pop(key, None)
+    session_state.pop("spy_delete_reset_confirm_v1", None)
 
 
 def start_license_session(session_state):
@@ -2971,15 +2979,23 @@ with t1:
                     )
                     for item in filtered_observations
                 }
+                deletion_confirm_key = (
+                    f"spy_delete_observation_confirm_{tenant_id}"
+                )
+                if st.session_state.pop("spy_delete_reset_confirm_v1", False):
+                    st.session_state[deletion_confirm_key] = False
                 deletion_id = st.selectbox(
                     "Observación que se va a eliminar",
                     options=list(deletion_labels),
                     format_func=lambda value: deletion_labels[value],
                     key=f"spy_delete_observation_id_{tenant_id}",
+                    on_change=lambda: st.session_state.__setitem__(
+                        deletion_confirm_key, False
+                    ),
                 )
                 confirm_deletion = st.checkbox(
                     "Confirmo que quiero eliminar únicamente esta observación.",
-                    key=f"spy_delete_observation_confirm_{tenant_id}",
+                    key=deletion_confirm_key,
                 )
                 if st.button(
                     "ELIMINAR OBSERVACIÓN SELECCIONADA",
@@ -3043,6 +3059,7 @@ with t1:
                                 st.success(
                                     "Observación eliminada y cambio guardado en Supabase."
                                 )
+                                st.session_state["spy_delete_reset_confirm_v1"] = True
                                 st.rerun()
 
         if len(filtered_observations) >= 2:
