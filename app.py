@@ -3109,8 +3109,29 @@ with t1:
                             st.markdown(f"**{heading}**")
                             for label, field in compare_fields:
                                 st.markdown(f"**{label}:** {record.get(field) or 'No indicado'}")
-    elif competitor_storage_ready:
-        st.info("Todavía no hay observaciones guardadas para esta licencia.")
+    else:
+        if competitor_storage_ready:
+            st.info("Todavía no hay observaciones guardadas para esta licencia.")
+
+        with st.expander("Eliminar una observación guardada", expanded=False):
+            if not competitor_storage_ready:
+                st.warning(
+                    "La eliminación está deshabilitada hasta confirmar la conexión "
+                    "con Supabase para la licencia activa."
+                )
+            else:
+                st.info(
+                    "No hay observaciones para eliminar. Cuando guardes una, "
+                    "vas a poder seleccionarla y eliminar únicamente ese registro."
+                )
+                st.button(
+                    "ELIMINAR OBSERVACIÓN SELECCIONADA",
+                    key=f"spy_delete_observation_button_empty_{tenant_id or 'unknown'}",
+                    disabled=True,
+                    type="secondary",
+                    use_container_width=True,
+                    help="Se habilita cuando haya una observación guardada para esta licencia.",
+                )
 
 with t2:
     st.subheader("Clonador creativo")
